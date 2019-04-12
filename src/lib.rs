@@ -38,7 +38,11 @@ pub struct SerialPort {
 }
 
 impl SerialPort {
-    pub const fn new(base: u16) -> SerialPort {
+    /// Creates a new serial port interface on the given I/O port.
+    ///
+    /// This function is unsafe because the caller must ensure that the given base address
+    /// really points to a serial port device.
+    pub const unsafe fn new(base: u16) -> SerialPort {
         SerialPort {
             data: Port::new(base),
             int_en: Port::new(base + 1),
