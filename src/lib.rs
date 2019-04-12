@@ -1,4 +1,18 @@
 //! Minimal support for uart_16550 serial output.
+//!
+//! # Usage
+//!
+//! ```no_run
+//! use uart_16550::SerialPort;
+//!
+//! const SERIAL_IO_PORT: u16 = 0x3F8;
+//!
+//! let mut serial_port = unsafe { SerialPort::new(SERIAL_IO_PORT) };
+//! serial_port.init();
+//!
+//! // Now the serial port is ready to be used. To send a byte:
+//! serial_port.send(42);
+//! ```
 
 #![no_std]
 
