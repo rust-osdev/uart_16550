@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Lachlan Sneff <lachlan.sneff@gmail.com>", "Philipp Oppermann <dev@phil-opp.com>"]
 description = "Minimal support for uart_16550 serial output."
 license = "MIT"
+repository = "https://github.com/rust-osdev/uart_16550"
 
 [dependencies]
 bitflags = "1.0"
