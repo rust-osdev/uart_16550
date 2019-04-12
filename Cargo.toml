@@ -7,5 +7,5 @@ license = "MIT"
 repository = "https://github.com/rust-osdev/uart_16550"
 
 [dependencies]
-bitflags = "1.0"
+bitflags = "1.0.4"
 x86_64 = "0.5.4"
