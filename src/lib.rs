@@ -15,13 +15,9 @@
 //! ```
 
 #![no_std]
-
 #![warn(missing_docs)]
 
-#[macro_use]
-extern crate bitflags;
-extern crate x86_64;
-
+use bitflags::bitflags;
 use core::fmt;
 use x86_64::instructions::port::Port;
 
