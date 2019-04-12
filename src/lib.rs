@@ -66,12 +66,6 @@ impl SerialPort {
         unsafe { LineStsFlags::from_bits_truncate(self.line_sts.read()) }
     }
 
-    // pub fn receive(&mut self) {
-    //     while self.line_sts().contains(LineStsFlags::INPUT_FULL) {
-    //         //
-    //     }
-    // }
-
     pub fn send(&mut self, data: u8) {
         unsafe {
             match data {
