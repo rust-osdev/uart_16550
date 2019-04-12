@@ -1,4 +1,8 @@
+//! Minimal support for uart_16550 serial output.
+
 #![no_std]
+
+#![warn(missing_docs)]
 
 #[macro_use]
 extern crate bitflags;
@@ -28,6 +32,7 @@ bitflags! {
     }
 }
 
+/// An interface to a serial port that allows sending out individual bytes.
 pub struct SerialPort {
     data: Port<u8>,
     int_en: Port<u8>,
@@ -53,6 +58,7 @@ impl SerialPort {
         }
     }
 
+    /// Initializes the serial port.
     pub fn init(&mut self) {
         unsafe {
             self.int_en.write(0x00);
@@ -70,6 +76,7 @@ impl SerialPort {
         unsafe { LineStsFlags::from_bits_truncate(self.line_sts.read()) }
     }
 
+    /// Sends a byte on the serial port.
     pub fn send(&mut self, data: u8) {
         unsafe {
             match data {
