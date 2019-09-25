@@ -8,5 +8,5 @@ repository = "https://github.com/rust-osdev/uart_16550"
 edition = "2018"
 
 [dependencies]
-bitflags = "1.0.4"
-x86_64 = "0.5.4"
+bitflags = "1.1.0"
+x86_64 = "0.7.3"
