@@ -1,6 +1,6 @@
 # uart_16550
 
-[![Azure DevOps builds](https://img.shields.io/azure-devops/build/rust-osdev/uart_16550/4.svg?style=flat-square)](https://dev.azure.com/rust-osdev/uart_16550/_build?definitionId=4)
+[![Build Status](https://github.com/rust-osdev/uart_16550/workflows/Build/badge.svg)](https://github.com/rust-osdev/uart_16550/actions?query=workflow%3ABuild) [![Docs.rs Badge](https://docs.rs/uart_16550/badge.svg)](https://docs.rs/uart_16550/)
 
 Minimal support for uart_16550 serial output.
 
