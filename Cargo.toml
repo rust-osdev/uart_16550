@@ -1,6 +1,6 @@
 [package]
 name = "uart_16550"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Lachlan Sneff <lachlan.sneff@gmail.com>", "Philipp Oppermann <dev@phil-opp.com>"]
 description = "Minimal support for uart_16550 serial output."
 license = "MIT"

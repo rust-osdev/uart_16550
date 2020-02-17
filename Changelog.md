@@ -1,3 +1,5 @@
+# 0.2.3
+
 - Cargo.toml: update x86_64 dependency ([#5](https://github.com/rust-osdev/uart_16550/pull/5))
 - Switch CI to GitHub Actions ([#6](https://github.com/rust-osdev/uart_16550/pull/6))
 
