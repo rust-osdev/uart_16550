@@ -21,3 +21,13 @@ serial_port.send(42);
 ## License
 
 Licensed under the MIT license ([LICENSE](LICENSE) or <http://opensource.org/licenses/MIT>).
+
+## Crate Feature Flags
+
+* `nightly`: This is the default.
+* `stable`: Use this to build with non-nightly rust. Needs `default-features = false`.
+
+## Building with stable rust
+
+This needs to have the [compile-time requirements](https://github.com/alexcrichton/cc-rs#compile-time-requirements) of the `cc` crate installed on your system.
+It was currently only tested on Linux and MacOS.
