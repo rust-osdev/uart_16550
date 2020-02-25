@@ -1,3 +1,5 @@
+# 0.2.4
+
 - Enable usage with non-nightly rust ([#7](https://github.com/rust-osdev/uart_16550/pull/7))
 
 # 0.2.3
