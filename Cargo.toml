@@ -9,4 +9,9 @@ edition = "2018"
 
 [dependencies]
 bitflags = "1.1.0"
-x86_64 = "0.9"
+x86_64 = { version = "0.9.3", default-features = false }
+
+[features]
+default = [ "nightly" ]
+stable = [ "x86_64/stable" ]
+nightly = [ "x86_64/nightly" ]

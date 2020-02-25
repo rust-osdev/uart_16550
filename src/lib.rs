@@ -57,7 +57,24 @@ impl SerialPort {
     ///
     /// This function is unsafe because the caller must ensure that the given base address
     /// really points to a serial port device.
+    #[cfg(feature = "nightly")]
     pub const unsafe fn new(base: u16) -> SerialPort {
+        SerialPort {
+            data: Port::new(base),
+            int_en: Port::new(base + 1),
+            fifo_ctrl: Port::new(base + 2),
+            line_ctrl: Port::new(base + 3),
+            modem_ctrl: Port::new(base + 4),
+            line_sts: Port::new(base + 5),
+        }
+    }
+
+    /// Creates a new serial port interface on the given I/O port.
+    ///
+    /// This function is unsafe because the caller must ensure that the given base address
+    /// really points to a serial port device.
+    #[cfg(not(feature = "nightly"))]
+    pub unsafe fn new(base: u16) -> SerialPort {
         SerialPort {
             data: Port::new(base),
             int_en: Port::new(base + 1),
