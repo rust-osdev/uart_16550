@@ -1,4 +1,4 @@
-//! Minimal support for uart_16550 serial output.
+//! Minimal support for uart_16550 serial I/O.
 //!
 //! # Usage
 //!
@@ -12,6 +12,9 @@
 //!
 //! // Now the serial port is ready to be used. To send a byte:
 //! serial_port.send(42);
+//!
+//! // To receive a byte:
+//! let data = serial_port.receive();
 //! ```
 
 #![no_std]
@@ -137,6 +140,14 @@ impl SerialPort {
                     self.data.write(data);
                 }
             }
+        }
+    }
+
+    /// Receives a byte on the serial port.
+    pub fn receive(&mut self) -> u8 {
+        unsafe {
+            while !self.line_sts().contains(LineStsFlags::INPUT_FULL) {}
+            self.data.read()
         }
     }
 }
