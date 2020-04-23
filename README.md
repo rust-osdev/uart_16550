@@ -2,7 +2,7 @@
 
 [![Build Status](https://github.com/rust-osdev/uart_16550/workflows/Build/badge.svg)](https://github.com/rust-osdev/uart_16550/actions?query=workflow%3ABuild) [![Docs.rs Badge](https://docs.rs/uart_16550/badge.svg)](https://docs.rs/uart_16550/)
 
-Minimal support for uart_16550 serial output.
+Minimal support for uart_16550 serial I/O.
 
 ## Usage
 
@@ -16,6 +16,9 @@ serial_port.init();
 
 // Now the serial port is ready to be used. To send a byte:
 serial_port.send(42);
+
+// To receive a byte:
+let data = serial_port.receive();
 ```
 
 ## License
