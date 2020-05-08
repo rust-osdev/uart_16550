@@ -24,6 +24,14 @@ use bitflags::bitflags;
 use core::fmt;
 use x86_64::instructions::port::Port;
 
+macro_rules! wait_for {
+    ($cond:expr) => {
+        while !$cond {
+            core::sync::atomic::spin_loop_hint()
+        }
+    };
+}
+
 bitflags! {
     /// Interrupt enable flags
     struct IntEnFlags: u8 {
@@ -128,15 +136,15 @@ impl SerialPort {
         unsafe {
             match data {
                 8 | 0x7F => {
-                    while !self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY) {}
+                    wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
                     self.data.write(8);
-                    while !self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY) {}
+                    wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
                     self.data.write(b' ');
-                    while !self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY) {}
+                    wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
                     self.data.write(8)
                 }
                 _ => {
-                    while !self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY) {}
+                    wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
                     self.data.write(data);
                 }
             }
@@ -146,7 +154,7 @@ impl SerialPort {
     /// Receives a byte on the serial port.
     pub fn receive(&mut self) -> u8 {
         unsafe {
-            while !self.line_sts().contains(LineStsFlags::INPUT_FULL) {}
+            wait_for!(self.line_sts().contains(LineStsFlags::INPUT_FULL));
             self.data.read()
         }
     }
