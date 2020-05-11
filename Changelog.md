@@ -1,3 +1,5 @@
+- Use `spin_loop_hint` while waiting for data ([#9](https://github.com/rust-osdev/uart_16550/pull/9))
+
 # 0.2.5
 
 - Support receiving bytes from serial ports ([#8](https://github.com/rust-osdev/uart_16550/pull/8))
