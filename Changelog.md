@@ -1,3 +1,5 @@
+- Update `x86_64` dependency to version `0.11.0`
+
 # 0.2.6
 
 - Use `spin_loop_hint` while waiting for data ([#9](https://github.com/rust-osdev/uart_16550/pull/9))
