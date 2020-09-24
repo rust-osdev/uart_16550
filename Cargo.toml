@@ -15,3 +15,10 @@ x86_64 = { version = "0.11.0", default-features = false }
 default = [ "nightly" ]
 stable = [ "x86_64/stable" ]
 nightly = [ "x86_64/nightly" ]
+
+[package.metadata.release]
+no-dev-version = true
+pre-release-replacements = [
+    { file="Changelog.md", search="# Unreleased", replace="# Unreleased\n\n# {{version}} – {{date}}", exactly=1 },
+]
+pre-release-commit-message = "Release version {{version}}"
