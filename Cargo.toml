@@ -9,11 +9,11 @@ edition = "2018"
 
 [dependencies]
 bitflags = "1.1.0"
-x86_64 = { version = "0.11.0", default-features = false }
+x86_64 = { version = "0.12.1", default-features = false, features = ["instructions"] }
 
 [features]
-default = [ "nightly" ]
-stable = [ "x86_64/stable" ]
+default = [ "x86_64/default" ]
+stable = [ "x86_64/external_asm" ]
 nightly = [ "x86_64/nightly" ]
 
 [package.metadata.release]
