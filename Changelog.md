@@ -1,5 +1,7 @@
 # Unreleased
 
+- Update `x86_64` dependency to version `0.12.2`
+
 # 0.2.8 – 2020-09-24
 
 - Update `x86_64` dependency to version `0.12.1`
