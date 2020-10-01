@@ -1,5 +1,7 @@
 # Unreleased
 
+- Fix default feature breakage ([#11](https://github.com/rust-osdev/uart_16550/pull/11))
+
 # 0.2.9 – 2020-09-29
 
 - Update `x86_64` dependency to version `0.12.2`
