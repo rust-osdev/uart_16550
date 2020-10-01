@@ -1,5 +1,7 @@
 # Unreleased
 
+# 0.2.10 – 2020-10-01
+
 - Fix default feature breakage ([#11](https://github.com/rust-osdev/uart_16550/pull/11))
 
 # 0.2.9 – 2020-09-29
