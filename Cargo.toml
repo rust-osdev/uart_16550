@@ -12,7 +12,7 @@ bitflags = "1.1.0"
 x86_64 = { version = "0.12.2", default-features = false, features = ["instructions"] }
 
 [features]
-default = [ "x86_64/default" ]
+default = [ "nightly" ]
 stable = [ "x86_64/external_asm" ]
 nightly = [ "x86_64/nightly" ]
 
