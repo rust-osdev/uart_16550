@@ -1,5 +1,7 @@
 # Unreleased
 
+# 0.2.11 – 2021-01-15
+
 - Use stabilized `hint::spin_loop` instead of deprecated `atomic::spin_loop_hint`
 
 # 0.2.10 – 2020-10-01
