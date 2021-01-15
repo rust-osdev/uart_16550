@@ -1,5 +1,7 @@
 # Unreleased
 
+- Use stabilized `hint::spin_loop` instead of deprecated `atomic::spin_loop_hint`
+
 # 0.2.10 – 2020-10-01
 
 - Fix default feature breakage ([#11](https://github.com/rust-osdev/uart_16550/pull/11))
