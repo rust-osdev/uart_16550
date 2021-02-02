@@ -1,5 +1,7 @@
 # Unreleased
 
+- Fix build on nightly by updating to x86_64 v0.13.2 ([#12](https://github.com/rust-osdev/uart_16550/pull/12))
+
 # 0.2.11 – 2021-01-15
 
 - Use stabilized `hint::spin_loop` instead of deprecated `atomic::spin_loop_hint`
