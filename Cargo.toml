@@ -14,7 +14,7 @@ x86_64 = { version = "0.14.0", default-features = false, features = ["instructio
 [features]
 default = [ "nightly" ]
 stable = [ "x86_64/external_asm" ]
-nightly = [ "x86_64/nightly" ]
+nightly = [ "x86_64/inline_asm" ]
 
 [package.metadata.release]
 no-dev-version = true
