@@ -1,5 +1,7 @@
 # Unreleased
 
+# 0.2.13 – 2021-04-30
+
 - Update x86_64 dependency and make it more robust ([#14](https://github.com/rust-osdev/uart_16550/pull/14))
 
 # 0.2.12 – 2021-02-02
