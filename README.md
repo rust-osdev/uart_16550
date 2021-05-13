@@ -2,14 +2,33 @@
 
 [![Build Status](https://github.com/rust-osdev/uart_16550/workflows/Build/badge.svg)](https://github.com/rust-osdev/uart_16550/actions?query=workflow%3ABuild) [![Docs.rs Badge](https://docs.rs/uart_16550/badge.svg)](https://docs.rs/uart_16550/)
 
-Minimal support for uart_16550 serial I/O.
+Minimal support for uart_16550 serial and memory mapped I/O.
 
 ## Usage
+
+### With `port_{stable, nightly}` feature
 
 ```rust
 use uart_16550::SerialPort;
 
 const SERIAL_IO_PORT: u16 = 0x3F8;
+
+let mut serial_port = unsafe { SerialPort::new(SERIAL_IO_PORT) };
+serial_port.init();
+
+// Now the serial port is ready to be used. To send a byte:
+serial_port.send(42);
+
+// To receive a byte:
+let data = serial_port.receive();
+```
+
+### With `mmio_{stable, nightly}` feature
+
+```rust
+use uart_16550::SerialPort;
+
+const SERIAL_IO_PORT: usize = 0x1000_0000;
 
 let mut serial_port = unsafe { SerialPort::new(SERIAL_IO_PORT) };
 serial_port.init();
@@ -27,8 +46,10 @@ Licensed under the MIT license ([LICENSE](LICENSE) or <http://opensource.org/lic
 
 ## Crate Feature Flags
 
-* `nightly`: This is the default.
-* `stable`: Use this to build with non-nightly rust. Needs `default-features = false`.
+* `port_nightly`: This is the default.
+* `port_stable`: Use this to build with non-nightly rust. Needs `default-features = false`.
+* `mmio_nightly`: Use this to initialize serial port through memory mapped I/O.
+* `mmio_stable`: Use this to build with non-nightly rust. Needs `default-features = false`.
 
 ## Building with stable rust
 
