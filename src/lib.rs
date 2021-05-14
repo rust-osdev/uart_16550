@@ -21,7 +21,7 @@
 //! ## With `mmio_{stable, nightly}` feature
 //!
 //! ```rust
-//! use uart_16550::SerialPort;
+//! use uart_16550::MmioSerialPort;
 //!
 //! const SERIAL_IO_PORT: usize = 0x1000_0000;
 //!
@@ -39,8 +39,9 @@
 #![warn(missing_docs)]
 #![cfg_attr(feature = "mmio_nightly", feature(const_ptr_offset))]
 
-use bitflags::bitflags;
 use core::fmt;
+
+use bitflags::bitflags;
 
 #[cfg(any(
     all(
@@ -52,15 +53,16 @@ use core::fmt;
         any(feature = "mmio_stable", feature = "mmio_nightly")
     )
 ))]
-compile_error!(
-    "One of these features must be enabled: `port_{stable, nightly}`, `mmio_{stable, nightly}`"
-);
+compile_error!("One of these features must be enabled: `port_{stable, nightly}`, `mmio_{stable, nightly}`");
+
+#[cfg(any(feature = "mmio_stable", feature = "mmio_nightly"))]
+use core::sync::atomic::{
+    AtomicPtr,
+    Ordering,
+};
 
 #[cfg(any(feature = "port_stable", feature = "port_nightly"))]
 use x86_64::instructions::port::Port;
-
-#[cfg(any(feature = "mmio_stable", feature = "mmio_nightly"))]
-use core::sync::atomic::{AtomicPtr, Ordering};
 
 macro_rules! wait_for {
     ($cond:expr) => {
@@ -182,11 +184,11 @@ impl SerialPort {
                     self.data.write(b' ');
                     wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
                     self.data.write(8)
-                }
+                },
                 _ => {
                     wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
                     self.data.write(data);
-                }
+                },
             }
         }
     }
@@ -202,7 +204,7 @@ impl SerialPort {
 
 /// An interface to a serial port that allows sending out individual bytes.
 #[cfg(any(feature = "mmio_stable", feature = "mmio_nightly"))]
-pub struct SerialPort {
+pub struct MmioSerialPort {
     data: AtomicPtr<u8>,
     int_en: AtomicPtr<u8>,
     fifo_ctrl: AtomicPtr<u8>,
@@ -295,11 +297,11 @@ impl SerialPort {
                     self_data.write(b' ');
                     wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
                     self_data.write(8)
-                }
+                },
                 _ => {
                     wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
                     self_data.write(data);
-                }
+                },
             }
         }
     }
