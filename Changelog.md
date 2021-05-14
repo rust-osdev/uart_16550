@@ -1,5 +1,7 @@
 # Unreleased
 
+- `SerialPort::new()` no longer requires `nightly` feature ([#16](https://github.com/rust-osdev/uart_16550/pull/16))
+
 # 0.2.13 – 2021-04-30
 
 - Update x86_64 dependency and make it more robust ([#14](https://github.com/rust-osdev/uart_16550/pull/14))
