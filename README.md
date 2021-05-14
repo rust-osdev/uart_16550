@@ -26,11 +26,11 @@ let data = serial_port.receive();
 ### With `mmio_{stable, nightly}` feature
 
 ```rust
-use uart_16550::SerialPort;
+use uart_16550::MmioSerialPort;
 
-const SERIAL_IO_PORT: usize = 0x1000_0000;
+const SERIAL_PORT_BASE_ADDRESS: usize = 0x1000_0000;
 
-let mut serial_port = unsafe { SerialPort::new(SERIAL_IO_PORT) };
+let mut serial_port = unsafe { MmioSerialPort::new(SERIAL_PORT_BASE_ADDRESS) };
 serial_port.init();
 
 // Now the serial port is ready to be used. To send a byte:
