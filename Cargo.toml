@@ -9,15 +9,14 @@ edition = "2018"
 
 [dependencies]
 bitflags = "1.1.0"
-x86_64 = { version = "0.14.0", default-features = false, features = ["instructions"], optional = true }
+
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+x86_64 = { version = "0.14.0", default-features = false, features = ["instructions"] }
 
 [features]
-default = [ "port_nightly"]
-#default = [ "port", "nightly" ]
-port_stable = [ "x86_64/external_asm" ]
-port_nightly = [ "x86_64/inline_asm" ]
-mmio_stable = []
-mmio_nightly = []
+default = [ "nightly"]
+stable = [ "x86_64/external_asm" ]
+nightly = [ "x86_64/inline_asm" ]
 
 [package.metadata.release]
 no-dev-version = true
