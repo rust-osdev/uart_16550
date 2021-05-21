@@ -1,6 +1,8 @@
-use x86_64::instructions::port::Port;
-use crate::LineStsFlags;
 use core::fmt;
+
+use x86_64::instructions::port::Port;
+
+use crate::LineStsFlags;
 
 /// An interface to a serial port that allows sending out individual bytes.
 pub struct SerialPort {

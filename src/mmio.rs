@@ -1,8 +1,12 @@
+use core::{
+    fmt,
+    sync::atomic::{
+        AtomicPtr,
+        Ordering,
+    },
+};
+
 use crate::LineStsFlags;
-use core::{fmt, sync::atomic::{
-    AtomicPtr,
-    Ordering,
-}};
 
 /// An interface to a serial port that allows sending out individual bytes.
 pub struct MmioSerialPort {

@@ -52,13 +52,15 @@ macro_rules! wait_for {
     };
 }
 
+/// Memory mapped implementation
 pub mod mmio;
 #[cfg(target_arch = "x86_64")]
+/// Port asm commands implementation
 pub mod x86_64;
 
+pub use crate::mmio::MmioSerialPort;
 #[cfg(target_arch = "x86_64")]
 pub use crate::x86_64::SerialPort;
-pub use crate::mmio::MmioSerialPort;
 
 bitflags! {
     /// Interrupt enable flags
