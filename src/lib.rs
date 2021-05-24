@@ -43,10 +43,10 @@ let data = serial_port.receive();
 #![warn(missing_docs)]
 #![cfg_attr(feature = "nightly", feature(const_ptr_offset))]
 
-use bitflags::bitflags;
-
 #[cfg(not(any(feature = "stable", feature = "nightly")))]
 compile_error!("Either the `stable` or `nightly` feature must be enabled");
+
+use bitflags::bitflags;
 
 macro_rules! wait_for {
     ($cond:expr) => {
