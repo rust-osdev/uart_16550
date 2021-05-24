@@ -1,17 +1,17 @@
 use core::fmt;
 
-use x86_64::instructions::port::Port;
+use x86_64::instructions::port::{Port, PortReadOnly, PortWriteOnly};
 
 use crate::LineStsFlags;
 
 /// An interface to a serial port that allows sending out individual bytes.
 pub struct SerialPort {
     data: Port<u8>,
-    int_en: Port<u8>,
-    fifo_ctrl: Port<u8>,
-    line_ctrl: Port<u8>,
-    modem_ctrl: Port<u8>,
-    line_sts: Port<u8>,
+    int_en: PortWriteOnly<u8>,
+    fifo_ctrl: PortWriteOnly<u8>,
+    line_ctrl: PortWriteOnly<u8>,
+    modem_ctrl: PortWriteOnly<u8>,
+    line_sts: PortReadOnly<u8>,
 }
 
 impl SerialPort {
@@ -19,31 +19,14 @@ impl SerialPort {
     ///
     /// This function is unsafe because the caller must ensure that the given base address
     /// really points to a serial port device.
-    #[cfg(feature = "nightly")]
     pub const unsafe fn new(base: u16) -> Self {
         Self {
             data: Port::new(base),
-            int_en: Port::new(base + 1),
-            fifo_ctrl: Port::new(base + 2),
-            line_ctrl: Port::new(base + 3),
-            modem_ctrl: Port::new(base + 4),
-            line_sts: Port::new(base + 5),
-        }
-    }
-
-    /// Creates a new serial port interface on the given I/O port.
-    ///
-    /// This function is unsafe because the caller must ensure that the given base address
-    /// really points to a serial port device.
-    #[cfg(feature = "stable")]
-    pub unsafe fn new(base: u16) -> Self {
-        Self {
-            data: Port::new(base),
-            int_en: Port::new(base + 1),
-            fifo_ctrl: Port::new(base + 2),
-            line_ctrl: Port::new(base + 3),
-            modem_ctrl: Port::new(base + 4),
-            line_sts: Port::new(base + 5),
+            int_en: PortWriteOnly::new(base + 1),
+            fifo_ctrl: PortWriteOnly::new(base + 2),
+            line_ctrl: PortWriteOnly::new(base + 3),
+            modem_ctrl: PortWriteOnly::new(base + 4),
+            line_sts: PortReadOnly::new(base + 5),
         }
     }
 
@@ -93,11 +76,11 @@ impl SerialPort {
                     self.data.write(b' ');
                     wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
                     self.data.write(8)
-                },
+                }
                 _ => {
                     wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
                     self.data.write(data);
-                },
+                }
             }
         }
     }
