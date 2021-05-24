@@ -6,7 +6,7 @@ Minimal support for uart_16550 serial and memory mapped I/O.
 
 ## Usage
 
-### With `port_{stable, nightly}` feature
+### With usual serial port
 
 ```rust
 use uart_16550::SerialPort;
@@ -23,7 +23,7 @@ serial_port.send(42);
 let data = serial_port.receive();
 ```
 
-### With `mmio_{stable, nightly}` feature
+### With memory mapped serial port
 
 ```rust
 use uart_16550::MmioSerialPort;
@@ -46,10 +46,8 @@ Licensed under the MIT license ([LICENSE](LICENSE) or <http://opensource.org/lic
 
 ## Crate Feature Flags
 
-* `port_nightly`: This is the default.
-* `port_stable`: Use this to build with non-nightly rust. Needs `default-features = false`.
-* `mmio_nightly`: Use this to initialize serial port through memory mapped I/O.
-* `mmio_stable`: Use this to build with non-nightly rust. Needs `default-features = false`.
+* `nightly`: This is the default.
+* `stable`: Use this to build with non-nightly rust. Needs `default-features = false`.
 
 ## Building with stable rust
 

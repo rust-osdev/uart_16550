@@ -1,31 +1,36 @@
 //! Minimal support for uart_16550 serial I/O.
 //!
 //! # Usage
-//! ## With `port_{stable, nightly}` feature
-//!
-//! ```rust
-//! use uart_16550::SerialPort;
-//!
-//! const SERIAL_IO_PORT: u16 = 0x3F8;
-//!
-//! let mut serial_port = unsafe { SerialPort::new(SERIAL_IO_PORT) };
-//! serial_port.init();
-//!
-//! // Now the serial port is ready to be used. To send a byte:
-//! serial_port.send(42);
-//!
-//! // To receive a byte:
-//! let data = serial_port.receive();
-//! ```
-//!
-//! ## With `mmio_{stable, nightly}` feature
+
+#![cfg_attr(
+    target_arch = "x86_64",
+    doc = "
+## With usual serial port
+```rust
+use uart_16550::SerialPort;
+
+const SERIAL_IO_PORT: u16 = 0x3F8;
+
+let mut serial_port = unsafe { SerialPort::new(SERIAL_IO_PORT) };
+serial_port.init();
+
+// Now the serial port is ready to be used. To send a byte:
+serial_port.send(42);
+
+// To receive a byte:
+let data = serial_port.receive();
+```
+"
+)]
+
+//! ## With memory mapped serial port
 //!
 //! ```rust
 //! use uart_16550::MmioSerialPort;
 //!
-//! const SERIAL_IO_PORT: usize = 0x1000_0000;
+//! const SERIAL_PORT_BASE_ADDRESS: usize = 0x1000_0000;
 //!
-//! let mut serial_port = unsafe { SerialPort::new(SERIAL_IO_PORT) };
+//! let mut serial_port = unsafe { MmioSerialPort::new(SERIAL_PORT_BASE_ADDRESS) };
 //! serial_port.init();
 //!
 //! // Now the serial port is ready to be used. To send a byte:
@@ -34,7 +39,6 @@
 //! // To receive a byte:
 //! let data = serial_port.receive();
 //! ```
-
 #![no_std]
 #![warn(missing_docs)]
 #![cfg_attr(feature = "nightly", feature(const_ptr_offset))]
