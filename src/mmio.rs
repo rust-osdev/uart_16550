@@ -1,9 +1,6 @@
 use core::{
     fmt,
-    sync::atomic::{
-        AtomicPtr,
-        Ordering,
-    },
+    sync::atomic::{AtomicPtr, Ordering},
 };
 
 use crate::LineStsFlags;
@@ -101,11 +98,11 @@ impl MmioSerialPort {
                     self_data.write(b' ');
                     wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
                     self_data.write(8)
-                },
+                }
                 _ => {
                     wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
                     self_data.write(data);
-                },
+                }
             }
         }
     }
