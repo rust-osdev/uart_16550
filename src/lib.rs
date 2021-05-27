@@ -6,7 +6,7 @@
     target_arch = "x86_64",
     doc = "
 ## With usual serial port
-```rust
+```no_run
 use uart_16550::SerialPort;
 
 const SERIAL_IO_PORT: u16 = 0x3F8;
@@ -25,7 +25,7 @@ let data = serial_port.receive();
 
 //! ## With memory mapped serial port
 //!
-//! ```rust
+//! ```no_run
 //! use uart_16550::MmioSerialPort;
 //!
 //! const SERIAL_PORT_BASE_ADDRESS: usize = 0x1000_0000;
