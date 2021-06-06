@@ -57,9 +57,11 @@
 //! // To receive a byte:
 //! let data = serial_port.receive();
 //! ```
+
 #![no_std]
 #![warn(missing_docs)]
 #![cfg_attr(feature = "nightly", feature(const_ptr_offset))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 #[cfg(not(any(feature = "stable", feature = "nightly")))]
 compile_error!("Either the `stable` or `nightly` feature must be enabled");
@@ -75,14 +77,14 @@ macro_rules! wait_for {
 }
 
 /// Memory mapped implementation
-pub mod mmio;
+mod mmio;
 #[cfg(target_arch = "x86_64")]
 /// Port asm commands implementation
-pub mod x86_64;
+mod port;
 
 pub use crate::mmio::MmioSerialPort;
 #[cfg(target_arch = "x86_64")]
-pub use crate::x86_64::SerialPort;
+pub use crate::port::SerialPort;
 
 bitflags! {
     /// Interrupt enable flags

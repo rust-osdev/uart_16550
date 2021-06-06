@@ -5,7 +5,7 @@ use core::{
 
 use crate::LineStsFlags;
 
-/// An interface to a serial port that allows sending out individual bytes.
+/// A memory-mapped UART.
 pub struct MmioSerialPort {
     data: AtomicPtr<u8>,
     int_en: AtomicPtr<u8>,
@@ -16,7 +16,7 @@ pub struct MmioSerialPort {
 }
 
 impl MmioSerialPort {
-    /// Creates a new serial port interface on the given memory mapped address.
+    /// Creates a new UART interface on the given memory mapped address.
     ///
     /// This function is unsafe because the caller must ensure that the given base address
     /// really points to a serial port device.
@@ -46,7 +46,7 @@ impl MmioSerialPort {
         }
     }
 
-    /// Initializes the serial port.
+    /// Initializes the memory-mapped UART.
     ///
     /// The default configuration of [38400/8-N-1](https://en.wikipedia.org/wiki/8-N-1) is used.
     pub fn init(&mut self) {
