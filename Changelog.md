@@ -1,5 +1,8 @@
 # Unreleased
 
+- Add support for memory mapped UARTs ([#15](https://github.com/rust-osdev/uart_16550/pull/15))
+- Improvements to new MMIO support ([#18](https://github.com/rust-osdev/uart_16550/pull/18))
+
 # 0.2.14 – 2021-05-14
 
 - `SerialPort::new()` no longer requires `nightly` feature ([#16](https://github.com/rust-osdev/uart_16550/pull/16))
