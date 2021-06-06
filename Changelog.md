@@ -1,5 +1,7 @@
 # Unreleased
 
+# 0.2.15 – 2021-06-06
+
 - Add support for memory mapped UARTs ([#15](https://github.com/rust-osdev/uart_16550/pull/15))
 - Improvements to new MMIO support ([#18](https://github.com/rust-osdev/uart_16550/pull/18))
 
