@@ -1,13 +1,36 @@
 //! Minimal support for uart_16550 serial I/O.
 //!
 //! # Usage
+
+#![cfg_attr(
+    target_arch = "x86_64",
+    doc = "
+## With usual serial port
+```no_run
+use uart_16550::SerialPort;
+
+const SERIAL_IO_PORT: u16 = 0x3F8;
+
+let mut serial_port = unsafe { SerialPort::new(SERIAL_IO_PORT) };
+serial_port.init();
+
+// Now the serial port is ready to be used. To send a byte:
+serial_port.send(42);
+
+// To receive a byte:
+let data = serial_port.receive();
+```
+"
+)]
+
+//! ## With memory mapped serial port
 //!
 //! ```no_run
-//! use uart_16550::SerialPort;
+//! use uart_16550::MmioSerialPort;
 //!
-//! const SERIAL_IO_PORT: u16 = 0x3F8;
+//! const SERIAL_PORT_BASE_ADDRESS: usize = 0x1000_0000;
 //!
-//! let mut serial_port = unsafe { SerialPort::new(SERIAL_IO_PORT) };
+//! let mut serial_port = unsafe { MmioSerialPort::new(SERIAL_PORT_BASE_ADDRESS) };
 //! serial_port.init();
 //!
 //! // Now the serial port is ready to be used. To send a byte:
@@ -16,13 +39,14 @@
 //! // To receive a byte:
 //! let data = serial_port.receive();
 //! ```
-
 #![no_std]
 #![warn(missing_docs)]
+#![cfg_attr(feature = "nightly", feature(const_ptr_offset))]
+
+#[cfg(not(any(feature = "stable", feature = "nightly")))]
+compile_error!("Either the `stable` or `nightly` feature must be enabled");
 
 use bitflags::bitflags;
-use core::fmt;
-use x86_64::instructions::port::{Port, PortReadOnly, PortWriteOnly};
 
 macro_rules! wait_for {
     ($cond:expr) => {
@@ -31,6 +55,16 @@ macro_rules! wait_for {
         }
     };
 }
+
+/// Memory mapped implementation
+pub mod mmio;
+#[cfg(target_arch = "x86_64")]
+/// Port asm commands implementation
+pub mod x86_64;
+
+pub use crate::mmio::MmioSerialPort;
+#[cfg(target_arch = "x86_64")]
+pub use crate::x86_64::SerialPort;
 
 bitflags! {
     /// Interrupt enable flags
@@ -50,104 +84,5 @@ bitflags! {
         // 1 to 4 unknown
         const OUTPUT_EMPTY = 1 << 5;
         // 6 and 7 unknown
-    }
-}
-
-/// An interface to a serial port that allows sending out individual bytes.
-pub struct SerialPort {
-    data: Port<u8>,
-    int_en: PortWriteOnly<u8>,
-    fifo_ctrl: PortWriteOnly<u8>,
-    line_ctrl: PortWriteOnly<u8>,
-    modem_ctrl: PortWriteOnly<u8>,
-    line_sts: PortReadOnly<u8>,
-}
-
-impl SerialPort {
-    /// Creates a new serial port interface on the given I/O port.
-    ///
-    /// This function is unsafe because the caller must ensure that the given base address
-    /// really points to a serial port device.
-    pub const unsafe fn new(base: u16) -> SerialPort {
-        SerialPort {
-            data: Port::new(base),
-            int_en: PortWriteOnly::new(base + 1),
-            fifo_ctrl: PortWriteOnly::new(base + 2),
-            line_ctrl: PortWriteOnly::new(base + 3),
-            modem_ctrl: PortWriteOnly::new(base + 4),
-            line_sts: PortReadOnly::new(base + 5),
-        }
-    }
-
-    /// Initializes the serial port.
-    ///
-    /// The default configuration of [38400/8-N-1](https://en.wikipedia.org/wiki/8-N-1) is used.
-    pub fn init(&mut self) {
-        unsafe {
-            // Disable interrupts
-            self.int_en.write(0x00);
-
-            // Enable DLAB
-            self.line_ctrl.write(0x80);
-
-            // Set maximum speed to 38400 bps by configuring DLL and DLM
-            self.data.write(0x03);
-            self.int_en.write(0x00);
-
-            // Disable DLAB and set data word length to 8 bits
-            self.line_ctrl.write(0x03);
-
-            // Enable FIFO, clear TX/RX queues and
-            // set interrupt watermark at 14 bytes
-            self.fifo_ctrl.write(0xC7);
-
-            // Mark data terminal ready, signal request to send
-            // and enable auxilliary output #2 (used as interrupt line for CPU)
-            self.modem_ctrl.write(0x0B);
-
-            // Enable interrupts
-            self.int_en.write(0x01);
-        }
-    }
-
-    fn line_sts(&mut self) -> LineStsFlags {
-        unsafe { LineStsFlags::from_bits_truncate(self.line_sts.read()) }
-    }
-
-    /// Sends a byte on the serial port.
-    pub fn send(&mut self, data: u8) {
-        unsafe {
-            match data {
-                8 | 0x7F => {
-                    wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
-                    self.data.write(8);
-                    wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
-                    self.data.write(b' ');
-                    wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
-                    self.data.write(8)
-                }
-                _ => {
-                    wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
-                    self.data.write(data);
-                }
-            }
-        }
-    }
-
-    /// Receives a byte on the serial port.
-    pub fn receive(&mut self) -> u8 {
-        unsafe {
-            wait_for!(self.line_sts().contains(LineStsFlags::INPUT_FULL));
-            self.data.read()
-        }
-    }
-}
-
-impl fmt::Write for SerialPort {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        for byte in s.bytes() {
-            self.send(byte);
-        }
-        Ok(())
     }
 }
