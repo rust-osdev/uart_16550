@@ -4,7 +4,8 @@ use x86_64::instructions::port::{Port, PortReadOnly, PortWriteOnly};
 
 use crate::LineStsFlags;
 
-/// An interface to a serial port that allows sending out individual bytes.
+/// A port-mapped UART.
+#[cfg_attr(docsrs, doc(cfg(target_arch = "x86_64")))]
 pub struct SerialPort {
     data: Port<u8>,
     int_en: PortWriteOnly<u8>,
