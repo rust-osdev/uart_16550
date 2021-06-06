@@ -1,29 +1,47 @@
-//! Minimal support for uart_16550 serial I/O.
+//! Minimal support for
+//! [serial communication](https://en.wikipedia.org/wiki/Asynchronous_serial_communication)
+//! through [UART](https://en.wikipedia.org/wiki/Universal_asynchronous_receiver-transmitter)
+//! devices, which are compatible to the [16550 UART](https://en.wikipedia.org/wiki/16550_UART).
 //!
-//! # Usage
-
-#![cfg_attr(
-    target_arch = "x86_64",
-    doc = "
-## With usual serial port
-```no_run
-use uart_16550::SerialPort;
-
-const SERIAL_IO_PORT: u16 = 0x3F8;
-
-let mut serial_port = unsafe { SerialPort::new(SERIAL_IO_PORT) };
-serial_port.init();
-
-// Now the serial port is ready to be used. To send a byte:
-serial_port.send(42);
-
-// To receive a byte:
-let data = serial_port.receive();
-```
-"
-)]
-
-//! ## With memory mapped serial port
+//! This crate supports port-mapped and memory mapped UARTS.
+//!
+//! ## Usage
+//!
+//! Depending on the system architecture, the UART can be either accessed through
+//! [port-mapped I/O](https://wiki.osdev.org/Port_IO) or
+//! [memory-mapped I/O](https://en.wikipedia.org/wiki/Memory-mapped_I/O).
+//!
+//! ### With port-mappd I/O
+//!
+//! The UART is accessed through port-mapped I/O on architectures such as `x86_64`.
+//! On these architectures, the  [`SerialPort`] type can be used:
+//!
+//!
+//! ```no_run
+//! # #[cfg(target_arch = "x86_64")]
+//! # fn main() {
+//! use uart_16550::SerialPort;
+//!
+//! const SERIAL_IO_PORT: u16 = 0x3F8;
+//!
+//! let mut serial_port = unsafe { SerialPort::new(SERIAL_IO_PORT) };
+//! serial_port.init();
+//!
+//! // Now the serial port is ready to be used. To send a byte:
+//! serial_port.send(42);
+//!
+//! // To receive a byte:
+//! let data = serial_port.receive();
+//! # }
+//! # #[cfg(not(target_arch = "x86_64"))]
+//! # fn main() {}
+//! ```
+//!
+//! ### With memory mapped serial port
+//!
+//! Most other architectures, such as [RISC-V](https://en.wikipedia.org/wiki/RISC-V), use
+//! memory-mapped I/O for accessing the UARTs. On these architectures, the [`MmioSerialPort`]
+//! type can be used:
 //!
 //! ```no_run
 //! use uart_16550::MmioSerialPort;
