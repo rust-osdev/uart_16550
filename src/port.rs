@@ -86,6 +86,14 @@ impl SerialPort {
         }
     }
 
+    /// Sends a raw byte on the serial port, intended for binary data.
+    pub fn send_raw(&mut self, data: u8) {
+        unsafe {
+            wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
+            self.data.write(data);
+        }
+    }
+
     /// Receives a byte on the serial port.
     pub fn receive(&mut self) -> u8 {
         unsafe {
