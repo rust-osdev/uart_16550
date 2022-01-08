@@ -1,5 +1,7 @@
 # Unreleased
 
+- Add `send_raw()` function to allow sending arbitrary binary data using the serial port ([#21](https://github.com/rust-osdev/uart_16550/pull/21))
+
 # 0.2.15 – 2021-06-06
 
 - Add support for memory mapped UARTs ([#15](https://github.com/rust-osdev/uart_16550/pull/15))
