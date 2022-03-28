@@ -1,5 +1,7 @@
 # Unreleased
 
+# 0.2.17 – 2022-03-28
+
 - Remove stabilized nightly feature 'const_ptr_offset' ([#22](https://github.com/rust-osdev/uart_16550/pull/22))
 
 # 0.2.16 – 2022-01-08
