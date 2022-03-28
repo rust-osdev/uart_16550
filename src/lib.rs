@@ -60,7 +60,6 @@
 
 #![no_std]
 #![warn(missing_docs)]
-#![cfg_attr(feature = "nightly", feature(const_ptr_offset))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 #[cfg(not(any(feature = "stable", feature = "nightly")))]
