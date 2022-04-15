@@ -20,20 +20,7 @@ impl MmioSerialPort {
     ///
     /// This function is unsafe because the caller must ensure that the given base address
     /// really points to a serial port device.
-    #[cfg(feature = "nightly")]
-    pub const unsafe fn new(base: usize) -> Self {
-        let base_pointer = base as *mut u8;
-        Self {
-            data: AtomicPtr::new(base_pointer),
-            int_en: AtomicPtr::new(base_pointer.add(1)),
-            fifo_ctrl: AtomicPtr::new(base_pointer.add(2)),
-            line_ctrl: AtomicPtr::new(base_pointer.add(3)),
-            modem_ctrl: AtomicPtr::new(base_pointer.add(4)),
-            line_sts: AtomicPtr::new(base_pointer.add(5)),
-        }
-    }
-
-    #[cfg(feature = "stable")]
+    #[rustversion::attr(since(1.61), const)]
     pub unsafe fn new(base: usize) -> Self {
         let base_pointer = base as *mut u8;
         Self {
