@@ -47,11 +47,6 @@ serial_port.send(42);
 let data = serial_port.receive();
 ```
 
-## Crate Feature Flags
-
-* `nightly`: This is the default.
-* `stable`: Use this to build with non-nightly rust. Needs `default-features = false`.
-
 ## Building with stable rust
 
 This needs to have the [compile-time requirements](https://github.com/alexcrichton/cc-rs#compile-time-requirements) of the `cc` crate installed on your system.
