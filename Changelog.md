@@ -1,5 +1,7 @@
 # Unreleased
 
+# 0.2.18 – 2022-04-16
+
 - Remove use of `stable` and `nightly` features ([#24](https://github.com/rust-osdev/uart_16550/pull/24))
 
 # 0.2.17 – 2022-03-28
