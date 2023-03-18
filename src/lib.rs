@@ -96,9 +96,14 @@ bitflags! {
 bitflags! {
     /// Line status flags
     struct LineStsFlags: u8 {
+        // values from https://www.lammertbies.nl/comm/info/serial-uart
         const INPUT_FULL = 1;
-        // 1 to 4 unknown
+        const OVERRUN_ERROR = 1 << 1;
+        const PARITY_ERROR = 1 << 2;
+        const FRAMING_ERROR = 1 << 3;
+        const BREAK_RECEIVED = 1 << 4;
         const OUTPUT_EMPTY = 1 << 5;
-        // 6 and 7 unknown
+        const OUTPUT_EMPTY_IDLE = 1 << 6;
+        const ERROR_DATA_FIFO = 1 << 7;
     }
 }
