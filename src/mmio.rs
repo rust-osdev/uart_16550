@@ -3,7 +3,7 @@ use core::{
     sync::atomic::{AtomicPtr, Ordering},
 };
 
-use crate::LineStsFlags;
+use crate::{DivisorLatchFlags, LineStsFlags, FifoCtrlFlags, ModemCtrlFlags};
 
 /// A memory-mapped UART.
 pub struct MmioSerialPort {
@@ -63,6 +63,46 @@ impl MmioSerialPort {
             // Mark data terminal ready, signal request to send
             // and enable auxilliary output #2 (used as interrupt line for CPU)
             self_modem_ctrl.write(0x0B);
+
+            // Enable interrupts
+            self_int_en.write(0x01);
+        }
+    }
+
+    /// Initializes the memory-mapped UART with custom configuration values.
+    pub fn init_values(&mut self, dlr: DivisorLatchFlags, fifo_ctrl: FifoCtrlFlags, modem_ctrl: ModemCtrlFlags) {
+        let self_int_en = self.int_en.load(Ordering::Relaxed);
+        let self_line_ctrl = self.line_ctrl.load(Ordering::Relaxed);
+        let self_data = self.data.load(Ordering::Relaxed);
+        let self_fifo_ctrl = self.fifo_ctrl.load(Ordering::Relaxed);
+        let self_modem_ctrl = self.modem_ctrl.load(Ordering::Relaxed);
+        unsafe {
+            // Disable interrupts
+            self_int_en.write(0x00);
+
+            // Enable DLAB
+            self_line_ctrl.write(0x80);
+
+            // Set maximum speed to configured bps (50-115,200, see DLL and DLM registers) by configuring DLL and DLM
+            let (dll, dlm) = if dlr.validate() {
+                dlr.split()
+            } else {
+                // set to sane default if user supplied invalid divisor latch settings
+                DivisorLatchFlags::baud_115200().split()
+            };
+            self_data.write(dll.bits());
+            self_int_en.write(dlm.bits());
+
+            // Disable DLAB and set data word length to 8 bits
+            self_line_ctrl.write(0x03);
+
+            // Enable FIFO, clear TX/RX queues and
+            // set interrupt watermark at 14 bytes
+            self_fifo_ctrl.write(fifo_ctrl.bits());
+
+            // Mark data terminal ready, signal request to send
+            // and enable auxilliary output #2 (used as interrupt line for CPU)
+            self_modem_ctrl.write(modem_ctrl.bits());
 
             // Enable interrupts
             self_int_en.write(0x01);
