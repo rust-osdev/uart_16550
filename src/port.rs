@@ -5,7 +5,7 @@ use x86_64::instructions::port::{Port, PortReadOnly, PortWriteOnly};
 use crate::LineStsFlags;
 
 /// A port-mapped UART.
-#[cfg_attr(docsrs, doc(cfg(target_arch = "x86_64")))]
+#[cfg_attr(docsrs, doc(cfg(any(target_arch = "x86", target_arch = "x86_64"))))]
 pub struct SerialPort {
     data: Port<u8>,
     int_en: PortWriteOnly<u8>,
