@@ -18,7 +18,7 @@
 //!
 //!
 //! ```no_run
-//! # #[cfg(target_arch = "x86_64")]
+//! # #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 //! # fn main() {
 //! use uart_16550::SerialPort;
 //!
@@ -33,7 +33,7 @@
 //! // To receive a byte:
 //! let data = serial_port.receive();
 //! # }
-//! # #[cfg(not(target_arch = "x86_64"))]
+//! # #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
 //! # fn main() {}
 //! ```
 //!
@@ -74,12 +74,12 @@ macro_rules! wait_for {
 
 /// Memory mapped implementation
 mod mmio;
-#[cfg(target_arch = "x86_64")]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 /// Port asm commands implementation
 mod port;
 
 pub use crate::mmio::MmioSerialPort;
-#[cfg(target_arch = "x86_64")]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 pub use crate::port::SerialPort;
 
 bitflags! {
