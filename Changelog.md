@@ -1,5 +1,7 @@
 # Unreleased
 
+- Make crate usable for 32-bit `x86` ([#28](https://github.com/rust-osdev/uart_16550/pull/28))
+
 # 0.2.18 – 2022-04-16
 
 - Remove use of `stable` and `nightly` features ([#24](https://github.com/rust-osdev/uart_16550/pull/24))
