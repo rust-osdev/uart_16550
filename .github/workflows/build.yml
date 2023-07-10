@@ -41,6 +41,11 @@ jobs:
         rustup target add x86_64-unknown-none
         cargo build --target x86_64-unknown-none
 
+    - name: "Run cargo build (aarch64)"
+      run: |
+        rustup target add aarch64-unknown-none
+        cargo build --target aarch64-unknown-none
+
     - name: "Run cargo test"
       run: cargo test
 
