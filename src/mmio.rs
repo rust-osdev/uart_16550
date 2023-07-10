@@ -6,6 +6,7 @@ use core::{
 use crate::LineStsFlags;
 
 /// A memory-mapped UART.
+#[derive(Debug)]
 pub struct MmioSerialPort {
     data: AtomicPtr<u8>,
     int_en: AtomicPtr<u8>,

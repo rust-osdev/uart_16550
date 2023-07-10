@@ -4,6 +4,7 @@ use crate::LineStsFlags;
 
 /// A x86 I/O port-mapped UART.
 #[cfg_attr(docsrs, doc(cfg(any(target_arch = "x86", target_arch = "x86_64"))))]
+#[derive(Debug)]
 pub struct SerialPort(u16 /* base port */);
 
 impl SerialPort {
