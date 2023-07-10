@@ -33,7 +33,7 @@ jobs:
     - name: "Run cargo build (x86) [nightly]"
       run: |
         rustup toolchain add nightly-2023-07-09
-        rustup component add rust-src --toolchain nightly-2023-07-09-x86_64-unknown-linux-gnu
+        rustup component add rust-src --toolchain nightly-2023-07-09
         cargo +nightly-2023-07-09 build --target test/x86-unknown-none.json -Z build-std=core,alloc,compiler_builtins -Z build-std-features=compiler-builtins-mem
 
     - name: "Run cargo build (x86_64)"
