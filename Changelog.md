@@ -1,5 +1,7 @@
 # Unreleased
 
+- Internal rewrite of port operations to work on both `x86` and `x86_64` ([#29](https://github.com/rust-osdev/uart_16550/pull/29))
+
 # 0.2.19 – 2023-07-07
 
 - Make crate usable for 32-bit `x86` ([#28](https://github.com/rust-osdev/uart_16550/pull/28))
