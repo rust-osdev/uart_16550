@@ -2,7 +2,7 @@
 
 [![Build Status](https://github.com/rust-osdev/uart_16550/workflows/Build/badge.svg)](https://github.com/rust-osdev/uart_16550/actions?query=workflow%3ABuild) [![Docs.rs Badge](https://docs.rs/uart_16550/badge.svg)](https://docs.rs/uart_16550/)
 
-Minimal support for [serial communication](https://en.wikipedia.org/wiki/Asynchronous_serial_communication) through [UART](https://en.wikipedia.org/wiki/Universal_asynchronous_receiver-transmitter) devices, which are compatible to the [16550 UART](https://en.wikipedia.org/wiki/16550_UART). This crate supports port-mapped and memory mapped UARTS.
+Minimal support for [serial communication](https://en.wikipedia.org/wiki/Asynchronous_serial_communication) through [UART](https://en.wikipedia.org/wiki/Universal_asynchronous_receiver-transmitter) devices, which are compatible to the [16550 UART](https://en.wikipedia.org/wiki/16550_UART). This crate supports I/O port-mapped (x86 only) and memory-mapped UARTS.
 
 ## Usage
 

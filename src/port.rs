@@ -1,34 +1,67 @@
 use core::fmt;
 
-use x86_64::instructions::port::{Port, PortReadOnly, PortWriteOnly};
-
 use crate::LineStsFlags;
 
-/// A port-mapped UART.
+/// A x86 I/O port-mapped UART.
 #[cfg_attr(docsrs, doc(cfg(any(target_arch = "x86", target_arch = "x86_64"))))]
-pub struct SerialPort {
-    data: Port<u8>,
-    int_en: PortWriteOnly<u8>,
-    fifo_ctrl: PortWriteOnly<u8>,
-    line_ctrl: PortWriteOnly<u8>,
-    modem_ctrl: PortWriteOnly<u8>,
-    line_sts: PortReadOnly<u8>,
-}
+#[derive(Debug)]
+pub struct SerialPort(u16 /* base port */);
 
 impl SerialPort {
-    /// Creates a new serial port interface on the given I/O port.
+    /// Base port.
+    fn port_base(&self) -> u16 {
+        self.0
+    }
+
+    /// Data port.
+    ///
+    /// Read and write.
+    fn port_data(&self) -> u16 {
+        self.port_base()
+    }
+
+    /// Interrupt enable port.
+    ///
+    /// Write only.
+    fn port_int_en(&self) -> u16 {
+        self.port_base() + 1
+    }
+
+    /// Fifo control port.
+    ///
+    /// Write only.
+    fn port_fifo_ctrl(&self) -> u16 {
+        self.port_base() + 2
+    }
+
+    /// Line control port.
+    ///
+    /// Write only.
+    fn port_line_ctrl(&self) -> u16 {
+        self.port_base() + 3
+    }
+
+    /// Modem control port.
+    ///
+    /// Write only.
+    fn port_modem_ctrl(&self) -> u16 {
+        self.port_base() + 4
+    }
+
+    /// Line status port.
+    ///
+    /// Read only.
+    fn port_line_sts(&self) -> u16 {
+        self.port_base() + 5
+    }
+
+    /// Creates a new serial port interface on the given I/O base port.
     ///
     /// This function is unsafe because the caller must ensure that the given base address
-    /// really points to a serial port device.
+    /// really points to a serial port device and that the caller has the necessary rights
+    /// to perform the I/O operation.
     pub const unsafe fn new(base: u16) -> Self {
-        Self {
-            data: Port::new(base),
-            int_en: PortWriteOnly::new(base + 1),
-            fifo_ctrl: PortWriteOnly::new(base + 2),
-            line_ctrl: PortWriteOnly::new(base + 3),
-            modem_ctrl: PortWriteOnly::new(base + 4),
-            line_sts: PortReadOnly::new(base + 5),
-        }
+        Self(base)
     }
 
     /// Initializes the serial port.
@@ -37,33 +70,33 @@ impl SerialPort {
     pub fn init(&mut self) {
         unsafe {
             // Disable interrupts
-            self.int_en.write(0x00);
+            x86::io::outb(self.port_int_en(), 0x00);
 
             // Enable DLAB
-            self.line_ctrl.write(0x80);
+            x86::io::outb(self.port_line_ctrl(), 0x80);
 
             // Set maximum speed to 38400 bps by configuring DLL and DLM
-            self.data.write(0x03);
-            self.int_en.write(0x00);
+            x86::io::outb(self.port_data(), 0x03);
+            x86::io::outb(self.port_int_en(), 0x00);
 
             // Disable DLAB and set data word length to 8 bits
-            self.line_ctrl.write(0x03);
+            x86::io::outb(self.port_line_ctrl(), 0x03);
 
             // Enable FIFO, clear TX/RX queues and
             // set interrupt watermark at 14 bytes
-            self.fifo_ctrl.write(0xC7);
+            x86::io::outb(self.port_fifo_ctrl(), 0xc7);
 
             // Mark data terminal ready, signal request to send
             // and enable auxilliary output #2 (used as interrupt line for CPU)
-            self.modem_ctrl.write(0x0B);
+            x86::io::outb(self.port_modem_ctrl(), 0x0b);
 
             // Enable interrupts
-            self.int_en.write(0x01);
+            x86::io::outb(self.port_int_en(), 0x01);
         }
     }
 
     fn line_sts(&mut self) -> LineStsFlags {
-        unsafe { LineStsFlags::from_bits_truncate(self.line_sts.read()) }
+        unsafe { LineStsFlags::from_bits_truncate(x86::io::inb(self.port_line_sts())) }
     }
 
     /// Sends a byte on the serial port.
@@ -72,15 +105,15 @@ impl SerialPort {
             match data {
                 8 | 0x7F => {
                     wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
-                    self.data.write(8);
+                    x86::io::outb(self.port_data(), 8);
                     wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
-                    self.data.write(b' ');
+                    x86::io::outb(self.port_data(), b' ');
                     wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
-                    self.data.write(8)
+                    x86::io::outb(self.port_data(), 8);
                 }
                 _ => {
                     wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
-                    self.data.write(data);
+                    x86::io::outb(self.port_data(), data);
                 }
             }
         }
@@ -90,7 +123,7 @@ impl SerialPort {
     pub fn send_raw(&mut self, data: u8) {
         unsafe {
             wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
-            self.data.write(data);
+            x86::io::outb(self.port_data(), data);
         }
     }
 
@@ -98,7 +131,7 @@ impl SerialPort {
     pub fn receive(&mut self) -> u8 {
         unsafe {
             wait_for!(self.line_sts().contains(LineStsFlags::INPUT_FULL));
-            self.data.read()
+            x86::io::inb(self.port_data())
         }
     }
 }

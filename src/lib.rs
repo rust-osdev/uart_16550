@@ -3,7 +3,7 @@
 //! through [UART](https://en.wikipedia.org/wiki/Universal_asynchronous_receiver-transmitter)
 //! devices, which are compatible to the [16550 UART](https://en.wikipedia.org/wiki/16550_UART).
 //!
-//! This crate supports port-mapped and memory mapped UARTS.
+//! This crate supports I/O port-mapped (x86 only) and memory-mapped UARTS.
 //!
 //! ## Usage
 //!

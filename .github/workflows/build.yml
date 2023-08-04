@@ -30,12 +30,25 @@ jobs:
         rustc -Vv
         cargo -Vv
 
-    - name: "Run cargo build"
-      run: cargo build
+    - name: "Run cargo build (x86) [nightly]"
+      run: |
+        rustup toolchain add nightly-2023-07-09
+        rustup component add rust-src --toolchain nightly-2023-07-09
+        cargo +nightly-2023-07-09 build --target test/x86-unknown-none.json -Z build-std=core,alloc,compiler_builtins -Z build-std-features=compiler-builtins-mem
+
+    - name: "Run cargo build (x86_64)"
+      run: |
+        rustup target add x86_64-unknown-none
+        cargo build --target x86_64-unknown-none
+
+    - name: "Run cargo build (aarch64)"
+      run: |
+        rustup target add aarch64-unknown-none
+        cargo build --target aarch64-unknown-none
 
     - name: "Run cargo test"
       run: cargo test
-    
+
     - name: "Run cargo build for stable"
       run: cargo build --no-default-features --features stable
       if: runner.os != 'Windows'
