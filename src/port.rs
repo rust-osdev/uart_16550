@@ -64,6 +64,56 @@ impl SerialPort {
         Self(base)
     }
 
+    /// Creates a new serial port interface on the given I/O base port and initializes it.
+    ///
+    /// This function returns `Err(())` if the serial port fails a simple loopback test.
+    ///
+    /// This function is unsafe because the caller must ensure that the given base address
+    /// really points to a serial port device and that the caller has the necessary rights
+    /// to perform the I/O operation.
+    pub unsafe fn try_create(base: u16) -> Result<Self, ()> {
+        let mut port = unsafe { Self::new(base) };
+
+        port.init();
+
+        port.loopback_test()?;
+
+        Ok(port)
+    }
+
+    /// Tests that the serial port is working.
+    ///
+    /// This function temporarily sets the serial port into loopback mode and
+    /// performse a simple write and read, checking that the same
+    /// value is read. If not this function returns `Err(())`.
+    pub fn loopback_test(&mut self) -> Result<(), ()> {
+        unsafe {
+            // Disable interrupts
+            x86::io::outb(self.port_int_en(), 0x00);
+
+            // Set the serial port into loopback mode
+            x86::io::outb(self.port_modem_ctrl(), 0x1e);
+
+            // write `0xae` to the data port
+            x86::io::outb(self.port_data(), 0xae);
+
+            // read back the value we just wrote
+            let loopback = x86::io::inb(self.port_data());
+            if loopback != 0xae {
+                return Err(());
+            }
+
+            // Mark data terminal ready, signal request to send
+            // and enable auxilliary output #2 (used as interrupt line for CPU)
+            x86::io::outb(self.port_modem_ctrl(), 0x0b);
+
+            // Enable interrupts
+            x86::io::outb(self.port_int_en(), 0x01);
+        }
+
+        Ok(())
+    }
+
     /// Initializes the serial port.
     ///
     /// The default configuration of [38400/8-N-1](https://en.wikipedia.org/wiki/8-N-1) is used.
