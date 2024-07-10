@@ -1,6 +1,7 @@
 # Unreleased
 
 - Add `try_send_raw` and `try_receive` ([#34](https://github.com/rust-osdev/uart_16550/pull/34))
+- Update bitflags dependency to version 2 ([#33](https://github.com/rust-osdev/uart_16550/pull/33))
 
 # 0.3.0 – 2023-08-04
 
