@@ -95,6 +95,15 @@ impl MmioSerialPort {
         }
     }
 
+    /// Sends a raw byte on the serial port, intended for binary data.
+    pub fn send_raw(&mut self, data: u8) {
+        let self_data = self.data.load(Ordering::Relaxed);
+        wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
+        unsafe {
+            self_data.write(data);
+        }
+    }
+
     /// Receives a byte on the serial port.
     pub fn receive(&mut self) -> u8 {
         let self_data = self.data.load(Ordering::Relaxed);
