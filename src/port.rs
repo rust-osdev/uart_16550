@@ -1,6 +1,6 @@
 use core::fmt;
 
-use crate::LineStsFlags;
+use crate::{LineStsFlags, WouldBlockError};
 
 /// A x86 I/O port-mapped UART.
 #[cfg_attr(docsrs, doc(cfg(any(target_arch = "x86", target_arch = "x86_64"))))]
@@ -115,17 +115,33 @@ impl SerialPort {
 
     /// Sends a raw byte on the serial port, intended for binary data.
     pub fn send_raw(&mut self, data: u8) {
-        unsafe {
-            wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
-            x86::io::outb(self.port_data(), data);
+        retry_until_ok!(self.try_send_raw(data))
+    }
+
+    /// Tries to send a raw byte on the serial port, intended for binary data.
+    pub fn try_send_raw(&mut self, data: u8) -> Result<(), WouldBlockError> {
+        if self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY) {
+            unsafe {
+                x86::io::outb(self.port_data(), data);
+            }
+            Ok(())
+        } else {
+            Err(WouldBlockError)
         }
     }
 
     /// Receives a byte on the serial port.
     pub fn receive(&mut self) -> u8 {
-        unsafe {
-            wait_for!(self.line_sts().contains(LineStsFlags::INPUT_FULL));
-            x86::io::inb(self.port_data())
+        retry_until_ok!(self.try_receive())
+    }
+
+    /// Tries to receive a byte on the serial port.
+    pub fn try_receive(&mut self) -> Result<u8, WouldBlockError> {
+        if self.line_sts().contains(LineStsFlags::INPUT_FULL) {
+            let data = unsafe { x86::io::inb(self.port_data()) };
+            Ok(data)
+        } else {
+            Err(WouldBlockError)
         }
     }
 }

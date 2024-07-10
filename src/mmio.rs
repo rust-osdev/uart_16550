@@ -3,7 +3,7 @@ use core::{
     sync::atomic::{AtomicPtr, Ordering},
 };
 
-use crate::LineStsFlags;
+use crate::{LineStsFlags, WouldBlockError};
 
 /// A memory-mapped UART.
 #[derive(Debug)]
@@ -90,18 +90,36 @@ impl MmioSerialPort {
 
     /// Sends a raw byte on the serial port, intended for binary data.
     pub fn send_raw(&mut self, data: u8) {
-        wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
-        let self_data = self.data.load(Ordering::Relaxed);
-        unsafe {
-            self_data.write(data);
+        retry_until_ok!(self.try_send_raw(data))
+    }
+
+    /// Tries to send a raw byte on the serial port, intended for binary data.
+    pub fn try_send_raw(&mut self, data: u8) -> Result<(), WouldBlockError> {
+        if self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY) {
+            let self_data = self.data.load(Ordering::Relaxed);
+            unsafe {
+                self_data.write(data);
+            }
+            Ok(())
+        } else {
+            Err(WouldBlockError)
         }
     }
 
     /// Receives a byte on the serial port.
     pub fn receive(&mut self) -> u8 {
-        wait_for!(self.line_sts().contains(LineStsFlags::INPUT_FULL));
-        let self_data = self.data.load(Ordering::Relaxed);
-        unsafe { self_data.read() }
+        retry_until_ok!(self.try_receive())
+    }
+
+    /// Tries to receive a byte on the serial port.
+    pub fn try_receive(&mut self) -> Result<u8, WouldBlockError> {
+        if self.line_sts().contains(LineStsFlags::INPUT_FULL) {
+            let self_data = self.data.load(Ordering::Relaxed);
+            let data = unsafe { self_data.read() };
+            Ok(data)
+        } else {
+            Err(WouldBlockError)
+        }
     }
 }
 
