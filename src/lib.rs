@@ -62,12 +62,17 @@
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+use core::fmt;
+
 use bitflags::bitflags;
 
-macro_rules! wait_for {
+macro_rules! retry_until_ok {
     ($cond:expr) => {
-        while !$cond {
-            core::hint::spin_loop()
+        loop {
+            if let Ok(ok) = $cond {
+                break ok;
+            }
+            core::hint::spin_loop();
         }
     };
 }
@@ -104,5 +109,16 @@ bitflags! {
         // 1 to 4 unknown
         const OUTPUT_EMPTY = 1 << 5;
         // 6 and 7 unknown
+    }
+}
+
+/// The `WouldBlockError` error indicates that the serial device was not ready immediately.
+#[non_exhaustive]
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct WouldBlockError;
+
+impl fmt::Display for WouldBlockError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("serial device not ready")
     }
 }

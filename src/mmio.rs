@@ -3,7 +3,7 @@ use core::{
     sync::atomic::{AtomicPtr, Ordering},
 };
 
-use crate::LineStsFlags;
+use crate::{LineStsFlags, WouldBlockError};
 
 /// A memory-mapped UART.
 #[derive(Debug)]
@@ -76,31 +76,49 @@ impl MmioSerialPort {
 
     /// Sends a byte on the serial port.
     pub fn send(&mut self, data: u8) {
-        let self_data = self.data.load(Ordering::Relaxed);
-        unsafe {
-            match data {
-                8 | 0x7F => {
-                    wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
-                    self_data.write(8);
-                    wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
-                    self_data.write(b' ');
-                    wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
-                    self_data.write(8)
-                }
-                _ => {
-                    wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
-                    self_data.write(data);
-                }
+        match data {
+            8 | 0x7F => {
+                self.send_raw(8);
+                self.send_raw(b' ');
+                self.send_raw(8);
             }
+            data => {
+                self.send_raw(data);
+            }
+        }
+    }
+
+    /// Sends a raw byte on the serial port, intended for binary data.
+    pub fn send_raw(&mut self, data: u8) {
+        retry_until_ok!(self.try_send_raw(data))
+    }
+
+    /// Tries to send a raw byte on the serial port, intended for binary data.
+    pub fn try_send_raw(&mut self, data: u8) -> Result<(), WouldBlockError> {
+        if self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY) {
+            let self_data = self.data.load(Ordering::Relaxed);
+            unsafe {
+                self_data.write(data);
+            }
+            Ok(())
+        } else {
+            Err(WouldBlockError)
         }
     }
 
     /// Receives a byte on the serial port.
     pub fn receive(&mut self) -> u8 {
-        let self_data = self.data.load(Ordering::Relaxed);
-        unsafe {
-            wait_for!(self.line_sts().contains(LineStsFlags::INPUT_FULL));
-            self_data.read()
+        retry_until_ok!(self.try_receive())
+    }
+
+    /// Tries to receive a byte on the serial port.
+    pub fn try_receive(&mut self) -> Result<u8, WouldBlockError> {
+        if self.line_sts().contains(LineStsFlags::INPUT_FULL) {
+            let self_data = self.data.load(Ordering::Relaxed);
+            let data = unsafe { self_data.read() };
+            Ok(data)
+        } else {
+            Err(WouldBlockError)
         }
     }
 }
