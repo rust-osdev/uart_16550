@@ -101,20 +101,14 @@ impl SerialPort {
 
     /// Sends a byte on the serial port.
     pub fn send(&mut self, data: u8) {
-        unsafe {
-            match data {
-                8 | 0x7F => {
-                    wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
-                    x86::io::outb(self.port_data(), 8);
-                    wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
-                    x86::io::outb(self.port_data(), b' ');
-                    wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
-                    x86::io::outb(self.port_data(), 8);
-                }
-                _ => {
-                    wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
-                    x86::io::outb(self.port_data(), data);
-                }
+        match data {
+            8 | 0x7F => {
+                self.send_raw(8);
+                self.send_raw(b' ');
+                self.send_raw(8);
+            }
+            data => {
+                self.send_raw(data);
             }
         }
     }

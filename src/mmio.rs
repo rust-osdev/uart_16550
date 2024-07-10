@@ -76,21 +76,14 @@ impl MmioSerialPort {
 
     /// Sends a byte on the serial port.
     pub fn send(&mut self, data: u8) {
-        let self_data = self.data.load(Ordering::Relaxed);
-        unsafe {
-            match data {
-                8 | 0x7F => {
-                    wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
-                    self_data.write(8);
-                    wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
-                    self_data.write(b' ');
-                    wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
-                    self_data.write(8)
-                }
-                _ => {
-                    wait_for!(self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY));
-                    self_data.write(data);
-                }
+        match data {
+            8 | 0x7F => {
+                self.send_raw(8);
+                self.send_raw(b' ');
+                self.send_raw(8);
+            }
+            data => {
+                self.send_raw(data);
             }
         }
     }
