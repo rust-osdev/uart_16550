@@ -1,5 +1,7 @@
 # Unreleased
 
+- Update bitflags dependency to version 2 ([#33](https://github.com/rust-osdev/uart_16550/pull/33))
+
 # 0.3.0 – 2023-08-04
 
 - Internal rewrite of port operations to work on both `x86` and `x86_64` ([#29](https://github.com/rust-osdev/uart_16550/pull/29))

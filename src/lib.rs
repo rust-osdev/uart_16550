@@ -84,6 +84,8 @@ pub use crate::port::SerialPort;
 
 bitflags! {
     /// Interrupt enable flags
+    #[repr(transparent)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     struct IntEnFlags: u8 {
         const RECEIVED = 1;
         const SENT = 1 << 1;
@@ -95,6 +97,8 @@ bitflags! {
 
 bitflags! {
     /// Line status flags
+    #[repr(transparent)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     struct LineStsFlags: u8 {
         const INPUT_FULL = 1;
         // 1 to 4 unknown
