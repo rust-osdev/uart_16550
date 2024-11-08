@@ -23,14 +23,24 @@ impl MmioSerialPort {
     /// really points to a serial port device.
     #[rustversion::attr(since(1.61), const)]
     pub unsafe fn new(base: usize) -> Self {
+        Self::new_with_stride(base, 1)
+    }
+
+    /// Creates a new UART interface on the given memory mapped address with a given
+    /// register stride.
+    ///
+    /// This function is unsafe because the caller must ensure that the given base address
+    /// really points to a serial port device.
+    #[rustversion::attr(since(1.61), const)]
+    pub unsafe fn new_with_stride(base: usize, stride: usize) -> Self {
         let base_pointer = base as *mut u8;
         Self {
             data: AtomicPtr::new(base_pointer),
-            int_en: AtomicPtr::new(base_pointer.add(1)),
-            fifo_ctrl: AtomicPtr::new(base_pointer.add(2)),
-            line_ctrl: AtomicPtr::new(base_pointer.add(3)),
-            modem_ctrl: AtomicPtr::new(base_pointer.add(4)),
-            line_sts: AtomicPtr::new(base_pointer.add(5)),
+            int_en: AtomicPtr::new(base_pointer.add(1 * stride)),
+            fifo_ctrl: AtomicPtr::new(base_pointer.add(2 * stride)),
+            line_ctrl: AtomicPtr::new(base_pointer.add(3 * stride)),
+            modem_ctrl: AtomicPtr::new(base_pointer.add(4 * stride)),
+            line_sts: AtomicPtr::new(base_pointer.add(5 * stride)),
         }
     }
 
