@@ -1,5 +1,7 @@
 # Unreleased
 
+# 0.3.2 – 2024-11-13
+
 - Add `MmioSerialPort::new_with_stride` function ([#36](https://github.com/rust-osdev/uart_16550/pull/36))
 
 # 0.3.1 – 2024-07-11
