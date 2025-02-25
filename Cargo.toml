@@ -10,6 +10,7 @@ edition = "2018"
 [dependencies]
 bitflags = "2"
 rustversion = "1.0.5"
+volatile = "0.6.1"
 
 [target.'cfg(any(target_arch = "x86", target_arch = "x86_64"))'.dependencies]
 x86 = "0.52"
