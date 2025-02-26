@@ -6,7 +6,7 @@ pub struct PortAccessedRegister {
 }
 
 impl PortAccessedRegister {
-    unsafe fn new(port: u16) -> Self {
+    const unsafe fn new(port: u16) -> Self {
         Self { port }
     }
 }
@@ -29,7 +29,7 @@ impl Uart16550Register for PortAccessedRegister {
 /// This function is unsafe because the caller must ensure that the given base address
 /// really points to a serial port device and that the caller has the necessary rights
 /// to perform the I/O operation.
-pub unsafe fn new(base: u16) -> Uart16550Registers<PortAccessedRegister> {
+pub const unsafe fn new(base: u16) -> Uart16550Registers<PortAccessedRegister> {
     Uart16550Registers {
         data: PortAccessedRegister::new(base),
         int_en: PortAccessedRegister::new(base + 1),
