@@ -78,14 +78,14 @@ macro_rules! retry_until_ok {
 }
 
 /// Memory mapped implementation
-mod mmio;
+pub mod mmio;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 /// Port asm commands implementation
-mod port;
-
-pub use crate::mmio::MmioSerialPort;
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-pub use crate::port::SerialPort;
+pub mod port;
+/// Trait for accessing a 16550's register
+pub mod register;
+/// Trait for using a 16550 compatible interface regardless of how it's connected
+pub mod uart_16550;
 
 bitflags! {
     /// Interrupt enable flags
