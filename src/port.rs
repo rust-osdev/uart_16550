@@ -107,6 +107,10 @@ impl SerialPort {
                 self.send_raw(b' ');
                 self.send_raw(8);
             }
+            0x0a => {
+                self.send_raw(0x0d);
+                self.send_raw(0x0a);
+            }
             data => {
                 self.send_raw(data);
             }
