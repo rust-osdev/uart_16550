@@ -100,12 +100,18 @@ impl SerialPort {
     }
 
     /// Sends a byte on the serial port.
+    /// 0x08 (backspace) and 0x7F (delete) get replaced with 0x08, 0x20, 0x08 and 0x0A (\n) gets replaced with \r\n.
+    /// If this replacement is unwanted use [SerialPort::send_raw] instead.
     pub fn send(&mut self, data: u8) {
         match data {
             8 | 0x7F => {
                 self.send_raw(8);
                 self.send_raw(b' ');
                 self.send_raw(8);
+            }
+            0x0A => {
+                self.send_raw(0x0D);
+                self.send_raw(0x0A);
             }
             data => {
                 self.send_raw(data);
