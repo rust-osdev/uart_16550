@@ -1,5 +1,7 @@
 # Unreleased
 
+# 0.4.0 – 2025-07-24
+
 - [Update `send` function to replace `\n` with `\r\n`](https://github.com/rust-osdev/uart_16550/pull/40)
 
 # 0.3.2 – 2024-11-13
