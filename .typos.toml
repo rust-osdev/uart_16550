@@ -1,0 +1,17 @@
+# Configuration for the typos spell checker utility (<https://github.com/crate-ci/typos>).
+
+[files]
+extend-exclude = [
+
+]
+
+[default]
+extend-ignore-identifiers-re = [
+
+]
+
+[default.extend-words]
+THR = "THR"
+
+[default.extend-identifiers]
+

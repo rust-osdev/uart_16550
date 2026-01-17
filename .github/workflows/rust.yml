@@ -1,0 +1,90 @@
+name: Build
+
+on: [  pull_request, merge_group ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: "${{ matrix.runs-on }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        runs-on:
+          - macos-latest
+          - ubuntu-latest
+          - windows-latest
+        rust:
+          - stable
+          - nightly
+          - 1.85.1 # MSVR
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "${{ matrix.rust }}"
+          targets: x86_64-unknown-linux-gnu,x86_64-unknown-uefi,i686-unknown-uefi,thumbv7em-none-eabihf,aarch64-unknown-uefi,riscv64gc-unknown-none-elf
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: "${{ matrix.runs-on }}-${{ matrix.rust }}"
+      - name: Build
+        run: cargo build --all-targets --verbose
+      - name: Build (no_std, x86, aarch64, riscv)
+        run: |
+          cargo build --verbose --target aarch64-unknown-uefi
+          cargo build --verbose --target i686-unknown-uefi
+          cargo build --verbose --target riscv64gc-unknown-none-elf
+          cargo build --verbose --target x86_64-unknown-uefi
+      - name: Build (no_std, aarch64)
+        run: cargo build --verbose --target thumbv7em-none-eabihf
+      - name: Run tests
+        run: cargo test --verbose
+
+  miri:
+    runs-on: ubuntu-latest
+    needs:
+      # Logical dependency and wait for cache to be present
+      - build
+    strategy:
+      matrix:
+        rust:
+          - nightly
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "${{ matrix.rust }}"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: "${{ matrix.rust }}"
+      - run: rustup component add miri
+      - run: cargo miri test --tests
+
+  style_checks:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust:
+          - stable
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "${{ matrix.rust }}"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: "${{ matrix.rust }}"
+      - name: Rustfmt
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --all-targets
+      - name: Rustdoc
+        run: cargo doc --no-deps --document-private-items

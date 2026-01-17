@@ -1,0 +1,25 @@
+[package]
+name = "uart_16550"
+version = "0.5.0"
+description = """
+Simple yet highly configurable low-level driver for 16550 UART devices,
+typically known and used as serial ports or COM ports. Easy integration into
+Rust while providing fine-grained control where needed (e.g., for kernel
+drivers).
+"""
+edition = "2024"
+rust-version = "1.85.1"
+keywords = ["uart-16550", "serial", "com", "driver", "tty"]
+categories = ["embedded", "hardware-support", "no-std", "no-std::no-alloc"]
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/rust-osdev/uart_16550"
+repository = "https://github.com/rust-osdev/uart_16550"
+documentation = "https://docs.rs/uart_16550"
+authors = [
+  "Philipp Schuster <phip1611@gmail.com>",
+]
+resolver = "3"
+
+[dependencies]
+bitflags = { version = "2.10", default-features = false, features = [] }
