@@ -46,6 +46,31 @@ jobs:
       - name: Run tests
         run: cargo test --verbose
 
+  integration_test:
+    runs-on:  ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: "integration-test"
+          cache-directories:
+            ./test/target
+      - name: Install QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-i386
+
+      - name: Verify QEMU installation
+        run: qemu-system-i386 --version
+      - name: Build
+        run: cd test && make
+      - name: Run
+        run: cd test && make run
+
   miri:
     runs-on: ubuntu-latest
     needs:
