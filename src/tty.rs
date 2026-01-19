@@ -69,8 +69,9 @@ impl<A: RegisterAddress + 'static> Error for Uart16550TtyError<A> {
 /// use uart_16550::{Config, Uart16550Tty};
 /// use core::fmt::Write;
 ///
-/// let mut uart = unsafe { Uart16550Tty::new_port(0x3f8, Config::default()).expect("should initialize device") };
-/// //                                    ^ you could also use `new_mmio(0x1000 as *mut _)` here
+/// // SAFETY: The address is valid and we have exclusive access.
+/// let mut uart = unsafe { Uart16550Tty::new_mmio(0x1000 as *mut _, Config::default()).expect("should initialize device") };
+/// //                                    ^ or `new_port(0x3f8)`
 /// uart.write_str("hello world\nhow's it going?");
 /// ```
 ///
@@ -107,7 +108,7 @@ impl Uart16550Tty<PioBackend> {
         base_port: u16,
         config: Config,
     ) -> Result<Self, Uart16550TtyError<PortIoAddress>> {
-        // SAFETY: The I/O port is valid and we have exclusive access.
+        // SAFETY: The address is valid and we have exclusive access.
         let mut inner =
             unsafe { Uart16550::new_port(base_port).map_err(Uart16550TtyError::AddressError)? };
         inner.init(config).map_err(Uart16550TtyError::InitError)?;
@@ -134,7 +135,7 @@ impl Uart16550Tty<MmioBackend> {
         base_address: *mut u8,
         config: Config,
     ) -> Result<Self, Uart16550TtyError<MmioAddress>> {
-        // SAFETY: The I/O port is valid and we have exclusive access.
+        // SAFETY: The address is valid and we have exclusive access.
         let mut inner =
             unsafe { Uart16550::new_mmio(base_address).map_err(Uart16550TtyError::AddressError)? };
 

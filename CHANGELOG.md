@@ -44,9 +44,9 @@ use uart_16550::{Config, Uart16550Tty};
 use core::fmt::Write;
 
 fn main() {
-  // SAFETY: The I/O port is valid and we have exclusive access.
-  let mut uart = unsafe { Uart16550Tty::new_port(0x3f8, Config::default()).expect("should initialize device") };
-  //                                    ^ you could also use `new_mmio(0x1000 as *mut _)` here
+  // SAFETY: The address is valid and we have exclusive access.
+  let mut uart = unsafe { Uart16550Tty::new_mmio(0x1000 as *mut _, Config::default()).expect("should initialize device") };
+  //                                    ^ or `new_port(0x3f8)`
   uart.write_str("hello world\nhow's it going?");
 }
 ```
@@ -57,9 +57,9 @@ fn main() {
 use uart_16550::{Config, Uart16550};
 
 fn main() {
-  // SAFETY: The I/O port is valid and we have exclusive access.
-  let mut uart = unsafe { Uart16550::new_port(0x3f8).expect("should be valid port") };
-  //                                 ^ you could also use `new_mmio(0x1000 as *mut _)` here
+  // SAFETY: The address is valid and we have exclusive access.
+  let mut uart = unsafe { Uart16550::new_mmio(0x1000 as *mut _).expect("should be valid port") };
+  //                                 ^ or `new_port(0x3f8)`
   uart.init(Config::default()).expect("should init device successfully");
   uart.test_loopback().expect("should have working loopback mode");
   uart.check_connected().expect("should have physically connected receiver");
