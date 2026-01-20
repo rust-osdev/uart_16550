@@ -914,13 +914,17 @@ mod tests {
     #[test]
     fn constructors() {
         // SAFETY: We just test the constructor but do not access the device.
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         unsafe {
             assert2::assert!(let Ok(_) = Uart16550::new_port(0x3f8));
             assert2::assert!(let Ok(_) = Uart16550::new_port(u16::MAX - NUM_REGISTERS as u16));
             assert2::assert!(let Ok(_) = Uart16550::new_port(u16::MAX - 7));
             assert2::assert!(let Err(InvalidAddressError::InvalidBaseAddress(PortIoAddress(_))) = Uart16550::new_port(u16::MAX - 6));
             assert2::assert!(let Err(InvalidAddressError::InvalidBaseAddress(PortIoAddress(_))) = Uart16550::new_port(u16::MAX));
+        }
 
+        // SAFETY: We just test the constructor but do not access the device.
+        unsafe {
             assert2::assert!(let Ok(_) = Uart16550::new_mmio(0x1000 as *mut _, 1));
             assert2::assert!(let Ok(_) = Uart16550::new_mmio(0x1000 as *mut _, 2));
             assert2::assert!(let Ok(_) = Uart16550::new_mmio(0x1000 as *mut _, 4));
@@ -962,5 +966,55 @@ mod tests {
         accept::<Uart16550<MmioBackend>>();
 
         // TODO: add test that the type is not Sync?
+    }
+
+    #[test]
+    fn mmio_dummy() {
+        let config = Config {
+            baud_rate: BaudRate::Baud38400,
+            ..Default::default()
+        };
+
+        // stride = 1
+        {
+            const STRIDE: usize = 1;
+            let mut memory = [0_u8; NUM_REGISTERS * STRIDE];
+
+            // Unblock init()
+            memory[offsets::LSR] = LSR::TRANSMITTER_EMPTY.bits();
+
+            // SAFETY: We are operating on valid memory.
+            let mut uart = unsafe { Uart16550::new_mmio(memory.as_mut_ptr(), STRIDE as u8) }
+                .expect("should be able to create the dummy MMIO");
+
+            uart.init(config.clone())
+                .expect("should be able to initialize the dummy MMIO");
+
+            let divisor = uart.config_register_dump().divisor();
+            // DLM is same as IER and was overwritten => only look at DLM.
+            let divisor = divisor & 0xff;
+            assert2::check!(divisor == 3);
+        }
+
+        // stride = 4
+        {
+            const STRIDE: usize = 4;
+            let mut memory = [0_u8; NUM_REGISTERS * STRIDE];
+
+            // Unblock init()
+            memory[offsets::LSR * STRIDE] = LSR::TRANSMITTER_EMPTY.bits();
+
+            // SAFETY: We are operating on valid memory.
+            let mut uart = unsafe { Uart16550::new_mmio(memory.as_mut_ptr(), STRIDE as u8) }
+                .expect("should be able to create the dummy MMIO");
+
+            uart.init(config)
+                .expect("should be able to initialize the dummy MMIO");
+
+            let divisor = uart.config_register_dump().divisor();
+            // DLM is the same as IER and was overwritten => only look at DLM.
+            let divisor = divisor & 0xff;
+            assert2::check!(divisor == 3);
+        }
     }
 }
