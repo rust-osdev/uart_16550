@@ -11,6 +11,7 @@ use crate::spec::NUM_REGISTERS;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use core::arch::asm;
 use core::fmt::Debug;
+use core::num::NonZeroU8;
 use core::ptr::{self, read_volatile, write_volatile};
 
 /// Abstraction over register addresses in [`Backend`].
@@ -97,7 +98,10 @@ pub trait Backend: Send {
     #[inline(always)]
     unsafe fn read(&mut self, offset: u8) -> u8 {
         assert_offset(offset);
-        let addr = self.base().add_offset(offset);
+        let address_offset = offset
+            .checked_mul(u8::from(self.stride()))
+            .expect("offset * stride overflows u8; reduce stride");
+        let addr = self.base().add_offset(address_offset);
         // SAFETY: The caller ensured that the register address is safe to use.
         unsafe { self._read_register(addr) }
     }
@@ -118,7 +122,10 @@ pub trait Backend: Send {
     #[inline(always)]
     unsafe fn write(&mut self, offset: u8, value: u8) {
         assert_offset(offset);
-        let addr = self.base().add_offset(offset);
+        let address_offset = offset
+            .checked_mul(u8::from(self.stride()))
+            .expect("offset * stride overflows u8; reduce stride");
+        let addr = self.base().add_offset(address_offset);
         // SAFETY: The caller ensured that the register address is safe to use.
         unsafe { self._write_register(addr, value) }
     }
@@ -128,7 +135,14 @@ pub trait Backend: Send {
     /// Returns the base [`RegisterAddress`].
     fn base(&self) -> Self::Address;
 
-    /// PRIVATE API!
+    /// Returns the configured stride.
+    ///
+    /// The stride is the fixed byte distance in physical address space between
+    /// consecutive logical registers, i.e. how much the address increases when
+    /// moving from one register index to the next.
+    fn stride(&self) -> NonZeroU8;
+
+    /// PRIVATE API! Use [`Self::read`]!
     ///
     /// Reads one byte from the specified register.
     ///
@@ -145,7 +159,7 @@ pub trait Backend: Send {
     #[doc(hidden)]
     unsafe fn _read_register(&mut self, address: Self::Address) -> u8;
 
-    /// PRIVATE API!
+    /// PRIVATE API! Use [`Self::write`]!
     ///
     /// Writes one byte to the specified register.
     ///
@@ -164,15 +178,23 @@ pub trait Backend: Send {
 
 /// x86 Port I/O backed UART 16550.
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Hash)]
 pub struct PioBackend(pub(crate) PortIoAddress /* base port */);
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 impl Backend for PioBackend {
     type Address = PortIoAddress;
 
+    #[inline(always)]
     fn base(&self) -> Self::Address {
         self.0
+    }
+
+    #[inline(always)]
+    fn stride(&self) -> NonZeroU8 {
+        // stride=1: x86 port I/O registers are always at consecutive port
+        // numbers. Compiler optimizes the unwrap away.
+        NonZeroU8::new(1).unwrap()
     }
 
     #[inline(always)]
@@ -181,10 +203,10 @@ impl Backend for PioBackend {
         unsafe {
             let ret: u8;
             asm!(
-                "inb %dx, %al",
-                in("dx") port.0,
-                out("al") ret,
-                options(att_syntax, nostack, preserves_flags)
+            "inb %dx, %al",
+            in("dx") port.0,
+            out("al") ret,
+            options(att_syntax, nostack, preserves_flags)
             );
             ret
         }
@@ -195,34 +217,54 @@ impl Backend for PioBackend {
         // SAFETY: The caller ensured that the I/O port is safe to use.
         unsafe {
             asm!(
-                "outb %al, %dx",
-                in("al") value,
-                in("dx") port.0,
-                options(att_syntax, nostack, preserves_flags)
+            "outb %al, %dx",
+            in("al") value,
+            in("dx") port.0,
+            options(att_syntax, nostack, preserves_flags)
             );
         }
     }
 }
 
 /// MMIO-mapped UART 16550.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Hash)]
-pub struct MmioBackend(pub(crate) MmioAddress /* base address, non-null */);
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Hash)]
+pub struct MmioBackend {
+    // non-null
+    pub(crate) base_address: MmioAddress,
+    pub(crate) stride: NonZeroU8,
+}
 
 impl Backend for MmioBackend {
     type Address = MmioAddress;
 
+    #[inline(always)]
     fn base(&self) -> Self::Address {
-        self.0
+        self.base_address
+    }
+
+    #[inline(always)]
+    fn stride(&self) -> NonZeroU8 {
+        self.stride
     }
 
     #[inline(always)]
     unsafe fn _read_register(&mut self, address: MmioAddress) -> u8 {
+        debug_assert_ne!(address.0, ptr::null_mut());
+        debug_assert!(address >= self.base());
+        let upper_bound_incl = (NUM_REGISTERS - 1) * usize::from(u8::from(self.stride));
+        debug_assert!(address.0 <= self.base().0.wrapping_add(upper_bound_incl));
+
         // SAFETY: The caller ensured that the MMIO address is safe to use.
         unsafe { read_volatile(address.0) }
     }
 
     #[inline(always)]
     unsafe fn _write_register(&mut self, address: MmioAddress, value: u8) {
+        debug_assert_ne!(address.0, ptr::null_mut());
+        debug_assert!(address >= self.base());
+        let upper_bound_incl = (NUM_REGISTERS - 1) * usize::from(u8::from(self.stride));
+        debug_assert!(address.0 <= self.base().0.wrapping_add(upper_bound_incl));
+
         // SAFETY: The caller ensured that the MMIO address is safe to use.
         unsafe { write_volatile(address.0, value) }
     }

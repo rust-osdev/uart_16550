@@ -15,11 +15,32 @@ use core::fmt::Display;
 ///
 /// [NUM_REGISTERS]: crate::spec::NUM_REGISTERS
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct InvalidAddressError<A: RegisterAddress>(pub(crate) A);
+pub enum InvalidAddressError<A: RegisterAddress> {
+    /// The specified address is invalid because it is either null or doesn't allow
+    /// for <code>[NUM_REGISTERS] - 1</code> subsequent addresses.
+    ///
+    /// [NUM_REGISTERS]: crate::spec::NUM_REGISTERS
+    InvalidBaseAddress(A),
+    /// The stride is invalid.
+    ///
+    /// Must be non-zero and a power of two (typically 1, 2, 4, or 8).
+    /// **Only relevant for MMIO**.
+    InvalidStride(u8),
+}
 
 impl<A: RegisterAddress> Display for InvalidAddressError<A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid register address: {:x?}", self.0)
+        match self {
+            Self::InvalidBaseAddress(addr) => {
+                write!(f, "invalid register address: {addr:x?}")
+            }
+            Self::InvalidStride(stride) => {
+                write!(
+                    f,
+                    "invalid stride {stride}: must be non-zero and a power of two (typically 1, 2, 4, or 8)"
+                )
+            }
+        }
     }
 }
 

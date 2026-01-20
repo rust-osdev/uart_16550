@@ -70,8 +70,8 @@ impl<A: RegisterAddress + 'static> Error for Uart16550TtyError<A> {
 /// use core::fmt::Write;
 ///
 /// // SAFETY: The address is valid and we have exclusive access.
-/// let mut uart = unsafe { Uart16550Tty::new_mmio(0x1000 as *mut _, Config::default()).expect("should initialize device") };
-/// //                                    ^ or `new_port(0x3f8)`
+/// let mut uart = unsafe { Uart16550Tty::new_mmio(0x1000 as *mut _, 4, Config::default()).expect("should initialize device") };
+/// //                                    ^ or `new_port(0x3f8, Config::default())`
 /// uart.write_str("hello world\nhow's it going?");
 /// ```
 ///
@@ -96,6 +96,10 @@ impl Uart16550Tty<PioBackend> {
     /// Creates a new [`Uart16550Tty`] backed by x86 port I/O.
     ///
     /// Initializes the device and performs a self-test.
+    ///
+    /// # Arguments
+    ///
+    /// - `base_address`: Base address of the UART.
     ///
     /// # Safety
     ///
@@ -124,6 +128,14 @@ impl Uart16550Tty<MmioBackend> {
     ///
     /// Initializes the device and performs a self-test.
     ///
+    /// # Arguments
+    ///
+    /// - `base_address`: Base address of the UART.
+    /// - `stride`: The stride is the fixed byte distance in physical address
+    ///   space between consecutive logical registers, i.e. how much the address
+    ///   increases when moving from one register index to the next. Typical
+    ///   values are `1`, `2`, `4`, and `8` - depending on your hardware/board.
+    ///
     /// # Safety
     ///
     /// Callers must ensure that the base address is valid and safe to use for
@@ -133,11 +145,13 @@ impl Uart16550Tty<MmioBackend> {
     /// [`NUM_REGISTERS`]: crate::spec::NUM_REGISTERS
     pub unsafe fn new_mmio(
         base_address: *mut u8,
+        stride: u8,
         config: Config,
     ) -> Result<Self, Uart16550TtyError<MmioAddress>> {
         // SAFETY: The address is valid and we have exclusive access.
-        let mut inner =
-            unsafe { Uart16550::new_mmio(base_address).map_err(Uart16550TtyError::AddressError)? };
+        let mut inner = unsafe {
+            Uart16550::new_mmio(base_address, stride).map_err(Uart16550TtyError::AddressError)?
+        };
 
         inner.init(config).map_err(Uart16550TtyError::InitError)?;
         inner

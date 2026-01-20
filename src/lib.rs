@@ -54,8 +54,8 @@
 //! use core::fmt::Write;
 //!
 //! // SAFETY: The address is valid and we have exclusive access.
-//! let mut uart = unsafe { Uart16550Tty::new_mmio(0x1000 as *mut _, Config::default()).expect("should initialize device") };
-//! //                                    ^ or `new_port(0x3f8)`
+//! let mut uart = unsafe { Uart16550Tty::new_mmio(0x1000 as *mut _, 4, Config::default()).expect("should initialize device") };
+//! //                                    ^ or `new_port(0x3f8, Config::default())`
 //! uart.write_str("hello world\nhow's it going?");
 //! ```
 //!
@@ -67,7 +67,7 @@
 //! use uart_16550::{Config, Uart16550};
 //!
 //! // SAFETY: The address is valid and we have exclusive access.
-//! let mut uart = unsafe { Uart16550::new_mmio(0x1000 as *mut _).expect("should be valid port") };
+//! let mut uart = unsafe { Uart16550::new_mmio(0x1000 as *mut _, 4).expect("should be valid port") };
 //! //                                 ^ or `new_port(0x3f8)`
 //! uart.init(Config::default()).expect("should init device successfully");
 //! uart.test_loopback().expect("should have working loopback mode");
@@ -146,6 +146,7 @@ use crate::spec::registers::{DLL, DLM, FCR, IER, ISR, LCR, LSR, MCR, MSR, SPR, o
 use crate::spec::{FIFO_SIZE, NUM_REGISTERS, calc_baud_rate, calc_divisor};
 use core::cmp;
 use core::hint;
+use core::num::NonZeroU8;
 
 pub mod backend;
 pub mod spec;
@@ -169,7 +170,7 @@ mod tty;
 /// use uart_16550::{Config, Uart16550};
 ///
 /// // SAFETY: The address is valid and we have exclusive access.
-/// let mut uart = unsafe { Uart16550::new_mmio(0x1000 as *mut _).unwrap() };
+/// let mut uart = unsafe { Uart16550::new_mmio(0x1000 as *mut _, 4).unwrap() };
 /// //                                 ^ or `new_port(0x3f8)`
 /// uart.init(Config::default()).expect("should init device successfully");
 /// uart.send_bytes_exact(b"hello world!");
@@ -181,7 +182,7 @@ mod tty;
 /// use uart_16550::{Config, Uart16550};
 ///
 /// // SAFETY: The address is valid and we have exclusive access.
-/// let mut uart = unsafe { Uart16550::new_mmio(0x1000 as *mut _).expect("should be valid port") };
+/// let mut uart = unsafe { Uart16550::new_mmio(0x1000 as *mut _, 4).expect("should be valid port") };
 /// //                                 ^ or `new_port(0x3f8)`
 /// uart.init(Config::default()).expect("should init device successfully");
 /// uart.test_loopback().expect("should have working loopback mode");
@@ -242,6 +243,10 @@ pub struct Uart16550<B: Backend> {
 impl Uart16550<PioBackend> {
     /// Creates a new [`Uart16550`] backed by x86 port I/O.
     ///
+    /// # Arguments
+    ///
+    /// - `base_address`: Base address of the UART.
+    ///
     /// # Safety
     ///
     /// Callers must ensure that the base port is valid and safe to use for the
@@ -250,7 +255,7 @@ impl Uart16550<PioBackend> {
     pub unsafe fn new_port(base_port: u16) -> Result<Self, InvalidAddressError<PortIoAddress>> {
         let base_address = PortIoAddress(base_port);
         if base_port.checked_add(NUM_REGISTERS as u16 - 1).is_none() {
-            return Err(InvalidAddressError(base_address));
+            return Err(InvalidAddressError::InvalidBaseAddress(base_address));
         }
 
         let backend = PioBackend(base_address);
@@ -267,6 +272,14 @@ impl Uart16550<PioBackend> {
 impl Uart16550<MmioBackend> {
     /// Creates a new [`Uart16550`] backed by MMIO.
     ///
+    /// # Arguments
+    ///
+    /// - `base_address`: Base address of the UART.
+    /// - `stride`: The stride is the fixed byte distance in physical address
+    ///   space between consecutive logical registers, i.e. how much the address
+    ///   increases when moving from one register index to the next. Typical
+    ///   values are `1`, `2`, `4`, and `8` - depending on your hardware/board.
+    ///
     /// # Safety
     ///
     /// Callers must ensure that the base address is valid and safe to use for
@@ -274,19 +287,31 @@ impl Uart16550<MmioBackend> {
     /// registers must be safely reachable from the base address.
     pub unsafe fn new_mmio(
         base_address: *mut u8,
+        stride: u8,
     ) -> Result<Self, InvalidAddressError<MmioAddress>> {
         let base_address = MmioAddress(base_address);
         if base_address.0.is_null() {
-            return Err(InvalidAddressError(base_address));
-        }
-        if (base_address.0 as usize)
-            .checked_add(NUM_REGISTERS - 1)
-            .is_none()
-        {
-            return Err(InvalidAddressError(base_address));
+            return Err(InvalidAddressError::InvalidBaseAddress(base_address));
         }
 
-        let backend = MmioBackend(base_address);
+        if stride == 0 || !stride.is_power_of_two() {
+            return Err(InvalidAddressError::InvalidStride(stride));
+        }
+
+        if (base_address.0 as usize)
+            .checked_add((NUM_REGISTERS - 1) * stride as usize)
+            .is_none()
+        {
+            return Err(InvalidAddressError::InvalidBaseAddress(base_address));
+        }
+
+        // Compiler will optimize the unwrap away
+        let stride = NonZeroU8::new(stride).unwrap();
+
+        let backend = MmioBackend {
+            base_address,
+            stride,
+        };
 
         Ok(Self {
             backend,
@@ -884,10 +909,49 @@ impl ConfigRegisterDump {
 
 #[cfg(test)]
 mod tests {
-    use crate::Uart16550;
-    use crate::backend::MmioBackend;
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    use crate::backend::PioBackend;
+    use super::*;
+
+    #[test]
+    fn constructors() {
+        // SAFETY: We just test the constructor but do not access the device.
+        unsafe {
+            assert2::assert!(let Ok(_) = Uart16550::new_port(0x3f8));
+            assert2::assert!(let Ok(_) = Uart16550::new_port(u16::MAX - NUM_REGISTERS as u16));
+            assert2::assert!(let Ok(_) = Uart16550::new_port(u16::MAX - 7));
+            assert2::assert!(let Err(InvalidAddressError::InvalidBaseAddress(PortIoAddress(_))) = Uart16550::new_port(u16::MAX - 6));
+            assert2::assert!(let Err(InvalidAddressError::InvalidBaseAddress(PortIoAddress(_))) = Uart16550::new_port(u16::MAX));
+
+            assert2::assert!(let Ok(_) = Uart16550::new_mmio(0x1000 as *mut _, 1));
+            assert2::assert!(let Ok(_) = Uart16550::new_mmio(0x1000 as *mut _, 2));
+            assert2::assert!(let Ok(_) = Uart16550::new_mmio(0x1000 as *mut _, 4));
+            assert2::assert!(let Ok(_) = Uart16550::new_mmio(0x1000 as *mut _, 8));
+
+            assert2::assert!(
+                let Err(InvalidAddressError::InvalidStride(0)) =
+                    Uart16550::new_mmio(0x1000 as *mut _, 0)
+            );
+            assert2::assert!(
+                let Err(InvalidAddressError::InvalidStride(3)) =
+                    Uart16550::new_mmio(0x1000 as *mut _, 3)
+            );
+            assert2::assert!(
+                let Err(InvalidAddressError::InvalidStride(5)) =
+                    Uart16550::new_mmio(0x1000 as *mut _, 5)
+            );
+            assert2::assert!(
+                let Err(InvalidAddressError::InvalidStride(6)) =
+                    Uart16550::new_mmio(0x1000 as *mut _, 6)
+            );
+            assert2::assert!(
+                let Err(InvalidAddressError::InvalidStride(7)) =
+                    Uart16550::new_mmio(0x1000 as *mut _, 7)
+            );
+            assert2::assert!(
+                let Err(InvalidAddressError::InvalidStride(9)) =
+                    Uart16550::new_mmio(0x1000 as *mut _, 9)
+            );
+        }
+    }
 
     #[test]
     fn is_send() {

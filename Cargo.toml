@@ -23,3 +23,6 @@ resolver = "3"
 
 [dependencies]
 bitflags = { version = "2.10", default-features = false, features = [] }
+
+[dev-dependencies]
+assert2 = { version = "0.3.16", default-features = false, features = [] }
