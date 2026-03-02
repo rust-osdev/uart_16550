@@ -37,14 +37,14 @@ jobs:
         run: cargo build --all-targets --verbose
       - name: Build (no_std, x86, aarch64, riscv)
         run: |
-          cargo build --verbose --target aarch64-unknown-uefi
-          cargo build --verbose --target i686-unknown-uefi
-          cargo build --verbose --target riscv64gc-unknown-none-elf
-          cargo build --verbose --target x86_64-unknown-uefi
+          cargo build --verbose --all-features --target aarch64-unknown-uefi
+          cargo build --verbose --all-features --target i686-unknown-uefi
+          cargo build --verbose --all-features --target riscv64gc-unknown-none-elf
+          cargo build --verbose --all-features --target x86_64-unknown-uefi
       - name: Build (no_std, aarch64)
-        run: cargo build --verbose --target thumbv7em-none-eabihf
+        run: cargo build --verbose --all-features --target thumbv7em-none-eabihf
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test --verbose --all-features
 
   integration_test:
     runs-on:  ubuntu-latest

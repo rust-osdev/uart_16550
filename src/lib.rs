@@ -152,6 +152,8 @@ pub mod backend;
 pub mod spec;
 
 mod config;
+#[cfg(feature = "embedded-io")]
+mod embedded_io;
 mod error;
 mod tty;
 
