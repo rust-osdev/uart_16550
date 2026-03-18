@@ -14,8 +14,12 @@ use core::fmt::Debug;
 use core::num::NonZeroU8;
 use core::ptr::{self, read_volatile, write_volatile};
 
+mod private {
+    pub trait Sealed {}
+}
+
 /// Abstraction over register addresses in [`Backend`].
-pub trait RegisterAddress: Copy + Clone + Debug + Sized {
+pub trait RegisterAddress: Copy + Clone + Debug + Sized + private::Sealed {
     /// Adds a byte offset onto the base register address.
     fn add_offset(self, offset: u8) -> Self;
 }
@@ -35,6 +39,10 @@ impl RegisterAddress for PortIoAddress {
         Self(port)
     }
 }
+
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+impl private::Sealed for PortIoAddress {}
+
 /// Memory-mapped I/O (MMIO) address.
 ///
 /// Guaranteed to be not null.
@@ -61,6 +69,8 @@ impl RegisterAddress for MmioAddress {
     }
 }
 
+impl private::Sealed for MmioAddress {}
+
 #[track_caller]
 fn assert_offset(offset: u8) {
     assert!(
@@ -75,7 +85,7 @@ fn assert_offset(offset: u8) {
 /// I/O and generic MMIO.
 ///
 /// Users should use [`Backend::read`] and [`Backend::write`].
-pub trait Backend: Send {
+pub trait Backend: Send + private::Sealed {
     /// The [`RegisterAddress`] that naturally belongs to the [`Backend`].
     type Address: RegisterAddress;
 
@@ -182,6 +192,9 @@ pub trait Backend: Send {
 pub struct PioBackend(pub(crate) PortIoAddress /* base port */);
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+impl private::Sealed for PioBackend {}
+
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 impl Backend for PioBackend {
     type Address = PortIoAddress;
 
@@ -233,6 +246,8 @@ pub struct MmioBackend {
     pub(crate) base_address: MmioAddress,
     pub(crate) stride: NonZeroU8,
 }
+
+impl private::Sealed for MmioBackend {}
 
 impl Backend for MmioBackend {
     type Address = MmioAddress;
