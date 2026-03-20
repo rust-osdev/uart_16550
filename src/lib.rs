@@ -581,17 +581,23 @@ impl<B: Backend> Uart16550<B> {
         Ok(())
     }
 
+    fn ready_to_receive(&mut self) -> Result<(), ByteReceiveError> {
+        let lsr = self.lsr();
+
+        if !lsr.contains(LSR::DATA_READY) {
+            return Err(ByteReceiveError);
+        }
+
+        Ok(())
+    }
+
     /* ----- User I/O ------------------------------------------------------- */
 
     /// Tries to read a raw byte from the device.
     ///
     /// This will receive whatever a remote has sent to us.
     pub fn try_receive_byte(&mut self) -> Result<u8, ByteReceiveError> {
-        let lsr = self.lsr();
-
-        if !lsr.contains(LSR::DATA_READY) {
-            return Err(ByteReceiveError);
-        }
+        self.ready_to_receive()?;
 
         // SAFETY: We operate on valid register addresses.
         let byte = unsafe { self.backend.read(offsets::DATA as u8) };
