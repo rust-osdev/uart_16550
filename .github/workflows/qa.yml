@@ -1,0 +1,16 @@
+name: QA
+
+on: [  pull_request, merge_group ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  spellcheck:
+    name: Spellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      # Executes "typos ."
+      - uses: crate-ci/typos@v1.41.0

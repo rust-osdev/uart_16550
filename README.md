@@ -1,57 +1,90 @@
 # uart_16550
 
-[![Build Status](https://github.com/rust-osdev/uart_16550/workflows/Build/badge.svg)](https://github.com/rust-osdev/uart_16550/actions?query=workflow%3ABuild) [![Docs.rs Badge](https://docs.rs/uart_16550/badge.svg)](https://docs.rs/uart_16550/)
+Simple yet highly configurable low-level driver for
+[16550 UART devices][uart], typically known and used as serial ports or
+COM ports. Easy integration into Rust while providing fine-grained control
+where needed (e.g., for kernel drivers).
 
-Minimal support for [serial communication](https://en.wikipedia.org/wiki/Asynchronous_serial_communication) through [UART](https://en.wikipedia.org/wiki/Universal_asynchronous_receiver-transmitter) devices, which are compatible to the [16550 UART](https://en.wikipedia.org/wiki/16550_UART). This crate supports I/O port-mapped (x86 only) and memory-mapped UARTS.
+The "serial device" or "COM port" in typical x86 machines is almost always
+backed by a **16550 UART devices**, may it be physical or emulated. This
+crate offers convenient and powerful abstractions for these devices, and
+also works for other architectures, such as ARM or RISC-V, by offering
+support for MMIO-mapped devices.
 
-## Usage
+Serial ports are especially useful for debugging or operating system
+learning projects. See [`Uart16550`] to get started.
 
-Depending on the system architecture, the UART can be either accessed through [port-mapped I/O](https://wiki.osdev.org/Port_IO) or [memory-mapped I/O](https://en.wikipedia.org/wiki/Memory-mapped_I/O).
+## Features
 
-### With port-mappd I/O
+- ✅ Full configure, transmit, receive, and interrupt support for UART
+  16550–compatible devices
+- ✅ High-level, ergonomic abstractions and types paired with support for
+  plain integers
+- ✅ Very easy to integrate, highly configurable when needed
+- ✅ Validated on **real hardware** as well as across different virtual
+  machines
+- ✅ Fully type-safe and derived directly from the official
+  [specification][uart]
+- ✅ Supports both **x86 port-mapped I/O** and **memory-mapped I/O** (MMIO)
+- ✅ `no_std`-compatible and allocation-free by design
 
-The UART is accessed through port-mapped I/O on architectures such as `x86_64`. On these architectures, the [`SerialPort`](https://docs.rs/uart_16550/~0.2/uart_16550/struct.SerialPort.html) type can be used:
+## Focus, Scope & Limitations
 
+While serial ports are often used in conjunction with VT102-like terminal
+emulation, the primary focus of this crate is strict specification
+compliance and convenient direct access to the underlying hardware for
+transmitting and receiving bytes, including all necessary device
+configuration.
+
+For basic terminal-related functionality, such as newline normalization and
+backspace handling, we provide `Uart16550Tty` as a **basic** convenience
+layer.
+
+# Overview
+
+Use `Uart16550Tty` for a quick start. For more fine-grained low-level
+control, please have a look at `Uart16550` instead.
+
+# Example (Minimalistic)
 
 ```rust
-use uart_16550::SerialPort;
+use uart_16550::{Config, Uart16550Tty};
+use core::fmt::Write;
 
-const SERIAL_IO_PORT: u16 = 0x3F8;
-
-let mut serial_port = unsafe { SerialPort::new(SERIAL_IO_PORT) };
-serial_port.init();
-
-// Now the serial port is ready to be used. To send a byte:
-serial_port.send(42);
-
-// To receive a byte:
-let data = serial_port.receive();
+fn main() {
+  // SAFETY: The address is valid and we have exclusive access.
+  let mut uart = unsafe { Uart16550Tty::new_mmio(0x1000 as *mut _, 4, Config::default()).expect("should initialize device") };
+  //                                    ^ or `new_port(0x3f8, Config::default())`
+  uart.write_str("hello world\nhow's it going?");
+}
 ```
 
-### With memory mapped serial port
-
-Most other architectures, such as [RISC-V](https://en.wikipedia.org/wiki/RISC-V), use memory-mapped I/O for accessing the UARTs. On these architectures, the [`MmioSerialPort`](https://docs.rs/uart_16550/~0.2/uart_16550/struct.MmioSerialPort.html) type can be used:
+# Example (More low-level control)
 
 ```rust
-use uart_16550::MmioSerialPort;
+use uart_16550::{Config, Uart16550};
 
-const SERIAL_PORT_BASE_ADDRESS: usize = 0x1000_0000;
-
-let mut serial_port = unsafe { MmioSerialPort::new(SERIAL_PORT_BASE_ADDRESS) };
-serial_port.init();
-
-// Now the serial port is ready to be used. To send a byte:
-serial_port.send(42);
-
-// To receive a byte:
-let data = serial_port.receive();
+fn main() {
+  // SAFETY: The address is valid and we have exclusive access.
+  let mut uart = unsafe { Uart16550::new_mmio(0x1000 as *mut _, 4).expect("should be valid port") };
+  //                                 ^ or `new_port(0x3f8)`
+  uart.init(Config::default()).expect("should init device successfully");
+  uart.test_loopback().expect("should have working loopback mode");
+  uart.check_connected().expect("should have physically connected receiver");
+  uart.send_bytes_exact(b"hello world!");
+}
 ```
-
-## Building with stable rust
-
-This needs to have the [compile-time requirements](https://github.com/alexcrichton/cc-rs#compile-time-requirements) of the `cc` crate installed on your system.
-It was currently only tested on Linux and MacOS.
 
 ## License
 
-Licensed under the MIT license ([LICENSE](LICENSE) or <http://opensource.org/licenses/MIT>).
+This project is licensed under either of
+
+- MIT license ([LICENSE-MIT](LICENSE-MIT))
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+
+
+## Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md).
+
+[uart]: https://en.wikipedia.org/wiki/16550_UART

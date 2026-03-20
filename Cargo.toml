@@ -1,30 +1,28 @@
 [package]
 name = "uart_16550"
-version = "0.4.0"
-authors = ["Lachlan Sneff <lachlan.sneff@gmail.com>", "Philipp Oppermann <dev@phil-opp.com>"]
-description = "Minimal support for uart_16550 serial output."
-license = "MIT"
+version = "0.5.0"
+description = """
+Simple yet highly configurable low-level driver for 16550 UART devices,
+typically known and used as serial ports or COM ports. Easy integration into
+Rust while providing fine-grained control where needed (e.g., for kernel
+drivers).
+"""
+edition = "2024"
+rust-version = "1.85.1"
+keywords = ["uart-16550", "serial", "com", "driver", "tty"]
+categories = ["embedded", "hardware-support", "no-std", "no-std::no-alloc"]
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/rust-osdev/uart_16550"
 repository = "https://github.com/rust-osdev/uart_16550"
-edition = "2018"
+documentation = "https://docs.rs/uart_16550"
+authors = [
+  "Philipp Schuster <phip1611@gmail.com>",
+]
+resolver = "3"
 
 [dependencies]
-bitflags = "2"
-rustversion = "1.0.5"
+bitflags = { version = "2.10", default-features = false, features = [] }
 
-[target.'cfg(any(target_arch = "x86", target_arch = "x86_64"))'.dependencies]
-x86 = "0.52"
-
-[features]
-default = []
-# TOOD: Remove these deprecated features on next breaking release
-stable = []
-nightly = []
-
-[package.metadata.release]
-pre-release-replacements = [
-    { file="Changelog.md", search="# Unreleased", replace="# Unreleased\n\n# {{version}} – {{date}}", exactly=1 },
-]
-pre-release-commit-message = "Release version {{version}}"
-
-[package.metadata.docs.rs]
-rustdoc-args = ["--cfg", "docsrs"]
+[dev-dependencies]
+assert2 = { version = "0.3.16", default-features = false, features = [] }
