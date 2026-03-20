@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## 0.5.0 - 2026-01-XX
+## 0.5.0 - 2026-03-20
 
 - Complete rewrite of the crate
 - The crate is by no means "minimalist" anymore. Now, `uart_16550`, is a simple
@@ -18,7 +18,12 @@ to clean up technical debt from the past, maintain the highest possible coding
 and API standards, and to make this crate ready for usage on real hardware,
 while keeping it easy to use in virtual machines.
 
-### Migration
+### Special Thanks
+
+Special Thanks to Philipp Oppermann (@phil-opp) and Martin Kröning (@mkroening)
+for their very valuable review on the new crate!
+
+### Migration to v0.5.0
 
 **Old**
 
