@@ -25,4 +25,4 @@ resolver = "3"
 bitflags = { version = "2.10", default-features = false, features = [] }
 
 [dev-dependencies]
-assert2 = { version = "0.3.16", default-features = false, features = [] }
+assert2 = { version = "0.4.0", default-features = false, features = [] }
