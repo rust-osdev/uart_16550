@@ -591,6 +591,28 @@ impl<B: Backend> Uart16550<B> {
         Ok(())
     }
 
+    fn ready_to_send(&mut self) -> Result<(), ByteSendError> {
+        let lsr = self.lsr();
+        let msr = self.msr();
+        let mcr = self.mcr();
+
+        // In FIFO mode, this bit is set when the transmitter’s FIFO is
+        // completely empty, being 0 if there is at least one byte in the
+        // FIFO waiting to be passed to the TSR for transmission. In Non-FIFO
+        // mode we must return on error to prevent data corruption in THR.
+        if !lsr.contains(LSR::THR_EMPTY) {
+            return Err(ByteSendError::NoCapacity);
+        }
+
+        // Software flow control. TODO, what to do with hardware flow control?
+        // Is this something we can and should support?
+        if !mcr.contains(MCR::LOOP_BACK) && !msr.contains(MSR::CTS) {
+            return Err(ByteSendError::RemoteNotClearToSend);
+        }
+
+        Ok(())
+    }
+
     /* ----- User I/O ------------------------------------------------------- */
 
     /// Tries to read a raw byte from the device.
@@ -644,36 +666,19 @@ impl<B: Backend> Uart16550<B> {
     /// [`ByteSendError::RemoteNotClearToSend`] immediately. Use
     /// [`Self::send_bytes_exact`] if you need all bytes delivered.
     pub fn try_send_bytes(&mut self, buffer: &[u8]) -> Result<usize, ByteSendError> {
-        let lsr = self.lsr();
-        let msr = self.msr();
-        let mcr = self.mcr();
-
-        let fifo_enabled = self.config.fifo_trigger_level.is_some();
-
         if buffer.is_empty() {
             return Ok(0);
         }
 
-        // In FIFO mode, this bit is set when the transmitter’s FIFO is
-        // completely empty, being 0 if there is at least one byte in the
-        // FIFO waiting to be passed to the TSR for transmission. In Non-FIFO
-        // mode we must return on error to prevent data corruption in THR.
-        if !lsr.contains(LSR::THR_EMPTY) {
-            return Err(ByteSendError::NoCapacity);
-        }
+        self.ready_to_send()?;
 
+        let fifo_enabled = self.config.fifo_trigger_level.is_some();
         let bytes = if fifo_enabled {
             let max_index = cmp::min(FIFO_SIZE, buffer.len());
             &buffer[..max_index]
         } else {
             &buffer[..1]
         };
-
-        // Software flow control. TODO, what to do with hardware flow control?
-        // Is this something we can and should support?
-        if !mcr.contains(MCR::LOOP_BACK) && !msr.contains(MSR::CTS) {
-            return Err(ByteSendError::RemoteNotClearToSend);
-        }
 
         // Spec: According to spec, it is fine to send multiple bytes in a row
         // in FIFO mode to the data register (THR).
