@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Rename `Uart16550::try_send_bytes()` to `Uart16550::send_bytes()`
+- Rename `Uart16550::try_receive_bytes()` to `Uart16550::receive_bytes()`
+
 ## 0.5.0 - 2026-03-20
 
 - Complete rewrite of the crate

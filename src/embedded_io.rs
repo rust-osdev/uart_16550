@@ -1,3 +1,5 @@
+//! API glue for [`Uart16550`] with [`embedded_io`].
+
 use core::convert::Infallible;
 use core::hint;
 
@@ -12,12 +14,16 @@ impl<B: Backend> ErrorType for Uart16550<B> {
 
 impl<B: Backend> Write for Uart16550<B> {
     fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+        if buf.is_empty() {
+            return Ok(0);
+        }
+
         loop {
-            if let Ok(n) = self.try_send_bytes(buf) {
+            let n = self.send_bytes(buf);
+            if n > 0 {
                 return Ok(n);
             }
-
-            hint::spin_loop()
+            hint::spin_loop();
         }
     }
 
@@ -36,12 +42,14 @@ impl<B: Backend> WriteReady for Uart16550<B> {
 
 impl<B: Backend> Read for Uart16550<B> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+        if buf.is_empty() {
+            return Ok(0);
+        }
         loop {
-            let n = self.try_receive_bytes(buf);
+            let n = self.receive_bytes(buf);
             if n > 0 {
                 return Ok(n);
             }
-
             hint::spin_loop();
         }
     }
