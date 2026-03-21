@@ -4,6 +4,9 @@
 
 - Rename `Uart16550::try_send_bytes()` to `Uart16550::send_bytes()`
 - Rename `Uart16550::try_receive_bytes()` to `Uart16550::receive_bytes()`
+- New public methods:
+  - `Uart16550::ready_to_receive()`
+  - `Uart16550::ready_to_send()`
 
 ## 0.5.0 - 2026-03-20
 

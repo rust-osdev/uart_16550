@@ -550,7 +550,7 @@ impl<B: Backend> Uart16550<B> {
     ///
     /// # Hints for Real Hardware
     ///
-    /// Please note that some cables (especially when a NULL modem is included)
+    /// Please note that some cables (especially when a Null modem is included)
     /// never raise the CD or even DSR line. So even if this checks fails,
     /// connections might work.
     ///
@@ -583,7 +583,16 @@ impl<B: Backend> Uart16550<B> {
         Ok(())
     }
 
-    fn ready_to_receive(&mut self) -> Result<(), ByteReceiveError> {
+    /// Checks if there is at least one pending byte on the device that can be
+    /// read.
+    ///
+    /// Please note that it is not required to call this before any of the
+    /// receive-methods, as all of them perform this check also internally
+    /// already.
+    ///
+    /// This differs from [`Self::check_connected`] as it only checks the
+    /// internal in-buffer without checking for an established connection.
+    pub fn ready_to_receive(&mut self) -> Result<(), ByteReceiveError> {
         let lsr = self.lsr();
 
         if !lsr.contains(LSR::DATA_READY) {
@@ -593,7 +602,16 @@ impl<B: Backend> Uart16550<B> {
         Ok(())
     }
 
-    fn ready_to_send(&mut self) -> Result<(), ByteSendError> {
+    /// Determines if data can be sent.
+    ///
+    /// Please note that it is not required to call this before any of the
+    /// send-methods, as all of them perform this check also internally
+    /// already.
+    ///
+    /// This differs from [`Self::check_connected`] as it only checks if further
+    /// data can be written (e.g., internal FIFO is empty) without checking for
+    /// an established connection.
+    pub fn ready_to_send(&mut self) -> Result<(), ByteSendError> {
         let lsr = self.lsr();
         let msr = self.msr();
         let mcr = self.mcr();
