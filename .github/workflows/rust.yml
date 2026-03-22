@@ -16,9 +16,9 @@ jobs:
       fail-fast: false
       matrix:
         runs-on:
-          - macos-latest
-          - ubuntu-latest
-          - windows-latest
+          - macos-latest # aarch64
+          - ubuntu-latest # x86_64
+          - windows-latest # x86_64
         rust:
           - stable
           - nightly
