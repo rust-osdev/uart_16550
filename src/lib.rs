@@ -22,7 +22,7 @@
 //!   16550–compatible devices
 //! - ✅ High-level, ergonomic abstractions and types paired with support for
 //!   plain integers
-//! - ✅ Very easy to integrate, highly configurable when needed
+//! - ✅ Straightforward to integrate, highly configurable when needed
 //! - ✅ Validated on **real hardware** as well as across different virtual
 //!   machines
 //! - ✅ Fully type-safe and derived directly from the official
