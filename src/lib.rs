@@ -29,6 +29,8 @@
 //!   [specification][uart]
 //! - ✅ Supports both **x86 port-mapped I/O** and **memory-mapped I/O** (MMIO)
 //! - ✅ `no_std`-compatible and allocation-free by design
+//! - ✅ Compatible with all architectures supported by Rust (x86/x86_64, ARM,
+//!   RISC-V, ...)
 //!
 //! ## Focus, Scope & Limitations
 //!
