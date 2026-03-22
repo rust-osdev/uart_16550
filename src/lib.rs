@@ -200,11 +200,11 @@ mod tty;
 /// ## Non-blocking
 ///
 /// - [`Uart16550::try_send_byte`]: Attempt to transmit a single byte.
-/// - [`Uart16550::try_send_bytes`]: Attempt to transmit multiple bytes and
-///   return the number of bytes written.
+/// - [`Uart16550::send_bytes`]: Transmit multiple bytes without blocking,
+///   returning the number of bytes written.
 /// - [`Uart16550::try_receive_byte`]: Attempt to receive a single byte.
-/// - [`Uart16550::try_receive_bytes`]: Attempt to receive bytes into a buffer
-///   and return the number of bytes read.
+/// - [`Uart16550::receive_bytes`]: Read bytes into a buffer without blocking,
+///   returning the number of bytes read.
 ///
 /// These methods return immediately if the hardware can't complete the
 /// operation.
@@ -492,7 +492,7 @@ impl<B: Backend> Uart16550<B> {
             self.configure_fcr();
 
             // Drain any data that might be still there
-            while self.try_receive_bytes(&mut [0]) > 0 {}
+            while self.receive_bytes(&mut [0]) > 0 {}
 
             // First: check a single byte
             {
@@ -550,7 +550,7 @@ impl<B: Backend> Uart16550<B> {
     ///
     /// # Hints for Real Hardware
     ///
-    /// Please note that some cables (especially when a NULL modem is included)
+    /// Please note that some cables (especially when a Null modem is included)
     /// never raise the CD or even DSR line. So even if this checks fails,
     /// connections might work.
     ///
@@ -583,7 +583,16 @@ impl<B: Backend> Uart16550<B> {
         Ok(())
     }
 
-    fn ready_to_receive(&mut self) -> Result<(), ByteReceiveError> {
+    /// Checks if there is at least one pending byte on the device that can be
+    /// read.
+    ///
+    /// Please note that it is not required to call this before any of the
+    /// receive-methods, as all of them perform this check also internally
+    /// already.
+    ///
+    /// This differs from [`Self::check_connected`] as it only checks the
+    /// internal in-buffer without checking for an established connection.
+    pub fn ready_to_receive(&mut self) -> Result<(), ByteReceiveError> {
         let lsr = self.lsr();
 
         if !lsr.contains(LSR::DATA_READY) {
@@ -593,7 +602,16 @@ impl<B: Backend> Uart16550<B> {
         Ok(())
     }
 
-    fn ready_to_send(&mut self) -> Result<(), ByteSendError> {
+    /// Determines if data can be sent.
+    ///
+    /// Please note that it is not required to call this before any of the
+    /// send-methods, as all of them perform this check also internally
+    /// already.
+    ///
+    /// This differs from [`Self::check_connected`] as it only checks if further
+    /// data can be written (e.g., internal FIFO is empty) without checking for
+    /// an established connection.
+    pub fn ready_to_send(&mut self) -> Result<(), ByteSendError> {
         let lsr = self.lsr();
         let msr = self.msr();
         let mcr = self.mcr();
@@ -635,17 +653,21 @@ impl<B: Backend> Uart16550<B> {
     #[inline]
     pub fn try_send_byte(&mut self, byte: u8) -> Result<(), ByteSendError> {
         // bytes are typically written in chunks for higher performance,
-        // therefore `try_send_bytes()` is our base here. Further, UART16550
-        // do not allow us to check if there is capacity left in the FIFO.
-        self.try_send_bytes(&[byte]).map(|_| ())
+        // therefore `send_bytes()` is our base here.
+        match self.send_bytes(&[byte]) {
+            0 => Err(ByteSendError::NoCapacity),
+            _ => Ok(()),
+        }
     }
 
-    /// Tries to receive bytes from the device and writes them into the provided
-    /// buffer.
+    /// Reads bytes from the device into the provided buffer.
     ///
-    /// This function returns the number of bytes that have been received and
-    /// put into the buffer.
-    pub fn try_receive_bytes(&mut self, buffer: &mut [u8]) -> usize {
+    /// Returns the number of bytes actually read, which may be less than
+    /// `buffer.len()` if fewer bytes are available. Returns `0` if no data is
+    /// currently available.
+    ///
+    /// Call repeatedly with a shifted buffer slice to receive all expected data.
+    pub fn receive_bytes(&mut self, buffer: &mut [u8]) -> usize {
         buffer
             .iter_mut()
             .map_while(|slot: &mut u8| {
@@ -656,23 +678,21 @@ impl<B: Backend> Uart16550<B> {
             .count()
     }
 
-    /// Tries to send bytes to the remote without blocking.
+    /// Sends bytes to the remote without blocking.
     ///
-    /// Returns the number of bytes accepted, which is either `0` (not
-    /// ready), `1` (non-FIFO mode), or up to [`FIFO_SIZE`] (FIFO mode).
+    /// Returns the number of bytes actually written: `0` if no data can
+    /// currently be written, `1` in non-FIFO mode, or up to [`FIFO_SIZE`]
+    /// in FIFO mode.
     ///
-    /// # Non-Blocking Behavior
-    ///
-    /// This function never spins. If the hardware is not ready it returns
-    /// [`ByteSendError::NoCapacity`] or
-    /// [`ByteSendError::RemoteNotClearToSend`] immediately. Use
-    /// [`Self::send_bytes_exact`] if you need all bytes delivered.
-    pub fn try_send_bytes(&mut self, buffer: &[u8]) -> Result<usize, ByteSendError> {
+    /// Call repeatedly with a shifted buffer slice to send all data.
+    pub fn send_bytes(&mut self, buffer: &[u8]) -> usize {
         if buffer.is_empty() {
-            return Ok(0);
+            return 0;
         }
 
-        self.ready_to_send()?;
+        if self.ready_to_send().is_err() {
+            return 0;
+        }
 
         let fifo_enabled = self.config.fifo_trigger_level.is_some();
         let bytes = if fifo_enabled {
@@ -691,10 +711,10 @@ impl<B: Backend> Uart16550<B> {
             }
         }
 
-        Ok(bytes.len())
+        bytes.len()
     }
 
-    /// Similar to [`Self::try_receive_bytes`] but loops until enough bytes were
+    /// Similar to [`Self::receive_bytes`] but loops until enough bytes were
     /// read to fully fill the buffer.
     ///
     /// Beware that this can spin indefinitely.
@@ -712,15 +732,18 @@ impl<B: Backend> Uart16550<B> {
         }
     }
 
-    /// Similar to [`Self::try_send_bytes`] but loops until all bytes were
+    /// Similar to [`Self::send_bytes`] but loops until all bytes were
     /// written entirely to the remote.
     ///
     /// Beware that this can spin indefinitely.
     pub fn send_bytes_exact(&mut self, bytes: &[u8]) {
         let mut remaining_bytes = bytes;
         while !remaining_bytes.is_empty() {
-            if let Ok(n) = self.try_send_bytes(remaining_bytes) {
-                remaining_bytes = &remaining_bytes[n..];
+            let n = self.send_bytes(remaining_bytes);
+            remaining_bytes = &remaining_bytes[n..];
+
+            if n > 0 {
+                continue;
             } else {
                 hint::spin_loop()
             }
