@@ -13,12 +13,20 @@ use core::arch::asm;
 use core::fmt::Debug;
 use core::num::NonZeroU8;
 use core::ptr::{self, read_volatile, write_volatile};
+use core::ptr::NonNull;
 
 mod private {
     pub trait Sealed {}
 }
 
 /// Abstraction over register addresses in [`Backend`].
+///
+/// # Safety
+///
+/// All implementations and instances of this trait are created within this
+/// crate and do follow all safety invariants. API users don't get access to the
+/// underlying register addresses, nor can they construct one themselves, as this
+/// type et al. are sealed.
 pub trait RegisterAddress: Copy + Clone + Debug + Sized + private::Sealed {
     /// Adds a byte offset onto the base register address.
     fn add_offset(self, offset: u8) -> Self;
@@ -49,7 +57,7 @@ impl private::Sealed for PortIoAddress {}
 ///
 /// See [`RegisterAddress`].
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Hash)]
-pub struct MmioAddress(pub(crate) *mut u8);
+pub struct MmioAddress(pub(crate) NonNull<u8>);
 
 // SAFETY: `Uart16550` is not `Sync`, so concurrent access from multiple
 // threads is not possible through this type's API alone. Implementing `Send`
@@ -264,10 +272,10 @@ impl Backend for MmioBackend {
 
     #[inline(always)]
     unsafe fn _read_register(&mut self, address: MmioAddress) -> u8 {
-        debug_assert_ne!(address.0, ptr::null_mut());
         debug_assert!(address >= self.base());
         let upper_bound_incl = (NUM_REGISTERS - 1) * usize::from(u8::from(self.stride));
-        debug_assert!(address.0 <= self.base().0.wrapping_add(upper_bound_incl));
+        // Address is in the device's address range
+        debug_assert!(address.0.as_ptr() <= self.base().0.as_ptr().wrapping_add(upper_bound_incl));
 
         // SAFETY: The caller ensured that the MMIO address is safe to use.
         unsafe { read_volatile(address.0) }
@@ -275,10 +283,10 @@ impl Backend for MmioBackend {
 
     #[inline(always)]
     unsafe fn _write_register(&mut self, address: MmioAddress, value: u8) {
-        debug_assert_ne!(address.0, ptr::null_mut());
         debug_assert!(address >= self.base());
         let upper_bound_incl = (NUM_REGISTERS - 1) * usize::from(u8::from(self.stride));
-        debug_assert!(address.0 <= self.base().0.wrapping_add(upper_bound_incl));
+        // Address is in the device's address range
+        debug_assert!(address.0.as_ptr() <= self.base().0.as_ptr().wrapping_add(upper_bound_incl));
 
         // SAFETY: The caller ensured that the MMIO address is safe to use.
         unsafe { write_volatile(address.0, value) }
