@@ -94,9 +94,13 @@ jobs:
 
   # Style + documentation checks
   style_checks:
-    runs-on: ubuntu-latest
+    runs-on: "${{ matrix.runs-on }}"
     strategy:
       matrix:
+        runs-on:
+          - macos-latest # aarch64
+          - ubuntu-latest # x86_64
+          - windows-latest # x86_64
         rust:
           - stable
     steps:
