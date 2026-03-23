@@ -12,13 +12,13 @@
 //! See [`Uart16550Tty`].
 
 use crate::backend::{Backend, MmioAddress, MmioBackend, RegisterAddress};
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64", doc))]
 use crate::backend::{PioBackend, PortIoAddress};
 use crate::{Config, InitError, InvalidAddressError, LoopbackError, Uart16550};
 use core::error::Error;
 use core::fmt::{self, Display, Formatter};
 
-/// Errors that [`Uart16550Tty::new_port`] and [`Uart16550Tty::new_mmio`] may
+/// Errors that [`Uart16550Tty::new_port()`] and [`Uart16550Tty::new_mmio()`] may
 /// return.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Uart16550TtyError<A: RegisterAddress> {
@@ -62,22 +62,44 @@ impl<A: RegisterAddress + 'static> Error for Uart16550TtyError<A> {
 /// Ideal for quickly observing debug output during VM development and testing.
 /// It implements [`fmt::Write`] allowing the use of `write!()`.
 ///
-/// # Example
+/// Access to the underlying UART device is provided through via
+/// [`Uart16550Tty::inner()`] and [`Uart16550Tty::inner_mut()`].
+///
+/// # Example (x86 Port IO)
+///
+#[cfg_attr(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    doc = "```rust,no_run"
+)]
+#[cfg_attr(
+    not(any(target_arch = "x86", target_arch = "x86_64")),
+    doc = "```rust,ignore"
+)]
+/// use uart_16550::{Config, Uart16550Tty};
+/// use core::fmt::Write;
+///
+/// // SAFETY: The port is valid and we have exclusive access.
+/// let mut uart = unsafe { Uart16550Tty::new_port(0x3f8, Config::default()).expect("should initialize device") };
+/// uart.write_str("hello world\nhow's it going?");
+/// ```
+///
+/// # Example (MMIO)
+///
 /// ```rust,no_run
 /// use uart_16550::{Config, Uart16550Tty};
 /// use core::fmt::Write;
 ///
 /// // SAFETY: The address is valid and we have exclusive access.
 /// let mut uart = unsafe { Uart16550Tty::new_mmio(0x1000 as *mut _, 4, Config::default()).expect("should initialize device") };
-/// //                                    ^ or `new_port(0x3f8, Config::default())`
 /// uart.write_str("hello world\nhow's it going?");
 /// ```
 ///
 /// # MMIO and Port I/O
 ///
 /// Uart 16550 devices are typically mapped via port I/O on x86 and via MMIO on
-/// other platforms. The constructors `new_port()` and `new_mmio()` create an
-/// instance of a device with the corresponding backend.
+/// other platforms. The constructors [`Uart16550Tty::new_port()`] and
+/// [`Uart16550Tty::new_mmio()`] create an instance of a device with the
+/// corresponding backend.
 ///
 /// # Hints for Usage on Real Hardware
 ///
@@ -89,7 +111,7 @@ impl<A: RegisterAddress + 'static> Error for Uart16550TtyError<A> {
 #[derive(Debug)]
 pub struct Uart16550Tty<B: Backend>(Uart16550<B>);
 
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64", doc))]
 impl Uart16550Tty<PioBackend> {
     /// Creates a new [`Uart16550Tty`] backed by x86 port I/O.
     ///

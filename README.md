@@ -46,10 +46,24 @@ layer.
 
 # Overview
 
-Use `Uart16550Tty` for a quick start. For more fine-grained low-level
-control, please have a look at `Uart16550` instead.
+Use `Uart16550Tty` for a quick start to write to a terminal via your serial
+connection. For more fine-grained low-level control, please have a look at
+`Uart16550` instead.
 
-# Example (Minimalistic)
+# Example (Minimal - x86 Port IO)
+
+```rust
+use uart_16550::{Config, Uart16550Tty};
+use core::fmt::Write;
+
+fn main() {
+  // SAFETY: The port is valid and we have exclusive access.
+  let mut uart = unsafe { Uart16550Tty::new_port(0x3f8, Config::default()).expect("should initialize device") };
+  uart.write_str("hello world\nhow's it going?");
+}
+```
+
+# Example (Minimal - MMIO)
 
 ```rust
 use uart_16550::{Config, Uart16550Tty};
@@ -58,7 +72,6 @@ use core::fmt::Write;
 fn main() {
   // SAFETY: The address is valid and we have exclusive access.
   let mut uart = unsafe { Uart16550Tty::new_mmio(0x1000 as *mut _, 4, Config::default()).expect("should initialize device") };
-  //                                    ^ or `new_port(0x3f8, Config::default())`
   uart.write_str("hello world\nhow's it going?");
 }
 ```
@@ -74,6 +87,7 @@ fn main() {
   //                                 ^ or `new_port(0x3f8)`
   uart.init(Config::default()).expect("should init device successfully");
   uart.test_loopback().expect("should have working loopback mode");
+  // Note: Might fail on real hardware with some null-modem cables
   uart.check_connected().expect("should have physically connected receiver");
   uart.send_bytes_exact(b"hello world!");
 }

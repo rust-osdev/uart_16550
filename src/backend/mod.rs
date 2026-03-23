@@ -8,11 +8,11 @@
 //! - [`MmioBackend`]
 
 mod mmio;
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64", doc))]
 mod pio;
 
 pub use mmio::{MmioAddress, MmioBackend};
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64", doc))]
 pub use pio::{PioBackend, PortIoAddress};
 
 use crate::spec::NUM_REGISTERS;
