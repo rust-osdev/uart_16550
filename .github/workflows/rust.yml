@@ -92,6 +92,7 @@ jobs:
       - run: rustup component add miri
       - run: cargo miri test --tests
 
+  # Style + documentation checks
   style_checks:
     runs-on: ubuntu-latest
     strategy:
@@ -113,3 +114,7 @@ jobs:
         run: cargo clippy --all-targets
       - name: Rustdoc
         run: cargo doc --no-deps --document-private-items
+      - name: Rustdoc (doc_cfg + nightly)
+        env:
+          RUSTDOCFLAGS: --cfg docsrs
+        run: cargo +nightly doc --no-deps --document-private-items

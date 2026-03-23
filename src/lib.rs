@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+// Automatically add badges for cfg feature gates in documentation.
+// https://doc.rust-lang.org/unstable-book/language-features/doc-cfg.html
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
 //! # uart_16550
 //!
 //! Simple yet highly configurable low-level driver for
