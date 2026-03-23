@@ -14,19 +14,23 @@ support for MMIO-mapped devices.
 Serial ports are especially useful for debugging or operating system
 learning projects. See [`Uart16550`] to get started.
 
+[`Uart16550`]: https://docs.rs/uart_16550/latest/uart_16550/struct.Uart16550.html
+
 ## Features
 
 - ✅ Full configure, transmit, receive, and interrupt support for UART
   16550–compatible devices
 - ✅ High-level, ergonomic abstractions and types paired with support for
   plain integers
-- ✅ Very easy to integrate, highly configurable when needed
+- ✅ Straightforward to integrate, highly configurable when needed
 - ✅ Validated on **real hardware** as well as across different virtual
   machines
 - ✅ Fully type-safe and derived directly from the official
   [specification][uart]
 - ✅ Supports both **x86 port-mapped I/O** and **memory-mapped I/O** (MMIO)
 - ✅ `no_std`-compatible and allocation-free by design
+- ✅ Compatible with all architectures supported by Rust (x86/x86_64, ARM,
+    RISC-V, ...)
 
 ## Focus, Scope & Limitations
 

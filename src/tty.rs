@@ -56,13 +56,11 @@ impl<A: RegisterAddress + 'static> Error for Uart16550TtyError<A> {
     }
 }
 
-/// Thin opinionated abstraction over [`Uart16550`] that helps to send Rust
-/// strings easily to the other side, assuming the remote is a TTY (terminal).
+/// Lightweight, opinionated wrapper around [`Uart16550`] for sending Rust
+/// strings to a connected TTY (terminal).
 ///
-/// It is especially suited as very easy way to see something when you develop
-/// and test things in a VM.
-///
-/// It implements [`fmt::Write`].
+/// Ideal for quickly observing debug output during VM development and testing.
+/// It implements [`fmt::Write`] allowing the use of `write!()`.
 ///
 /// # Example
 /// ```rust,no_run

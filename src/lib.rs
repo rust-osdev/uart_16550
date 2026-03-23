@@ -22,13 +22,15 @@
 //!   16550–compatible devices
 //! - ✅ High-level, ergonomic abstractions and types paired with support for
 //!   plain integers
-//! - ✅ Very easy to integrate, highly configurable when needed
+//! - ✅ Straightforward to integrate, highly configurable when needed
 //! - ✅ Validated on **real hardware** as well as across different virtual
 //!   machines
 //! - ✅ Fully type-safe and derived directly from the official
 //!   [specification][uart]
 //! - ✅ Supports both **x86 port-mapped I/O** and **memory-mapped I/O** (MMIO)
 //! - ✅ `no_std`-compatible and allocation-free by design
+//! - ✅ Compatible with all architectures supported by Rust (x86/x86_64, ARM,
+//!   RISC-V, ...)
 //!
 //! ## Focus, Scope & Limitations
 //!
@@ -147,6 +149,7 @@ use crate::spec::{FIFO_SIZE, NUM_REGISTERS, calc_baud_rate, calc_divisor};
 use core::cmp;
 use core::hint;
 use core::num::NonZeroU8;
+use core::ptr::NonNull;
 
 pub mod backend;
 pub mod spec;
@@ -291,16 +294,14 @@ impl Uart16550<MmioBackend> {
         base_address: *mut u8,
         stride: u8,
     ) -> Result<Self, InvalidAddressError<MmioAddress>> {
+        let base_address = NonNull::new(base_address).ok_or(InvalidAddressError::Null)?;
         let base_address = MmioAddress(base_address);
-        if base_address.0.is_null() {
-            return Err(InvalidAddressError::InvalidBaseAddress(base_address));
-        }
 
         if stride == 0 || !stride.is_power_of_two() {
             return Err(InvalidAddressError::InvalidStride(stride));
         }
 
-        if (base_address.0 as usize)
+        if (base_address.0.as_ptr() as usize)
             .checked_add((NUM_REGISTERS - 1) * stride as usize)
             .is_none()
         {

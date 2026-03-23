@@ -16,8 +16,10 @@ use core::fmt::Display;
 /// [NUM_REGISTERS]: crate::spec::NUM_REGISTERS
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum InvalidAddressError<A: RegisterAddress> {
-    /// The specified address is invalid because it is either null or doesn't allow
-    /// for <code>[NUM_REGISTERS] - 1</code> subsequent addresses.
+    /// The specified address is null.
+    Null,
+    /// The given base address is invalid, e.g., it cannot accommodate
+    /// <code>[NUM_REGISTERS] - 1</code> consecutive addresses.
     ///
     /// [NUM_REGISTERS]: crate::spec::NUM_REGISTERS
     InvalidBaseAddress(A),
@@ -31,6 +33,9 @@ pub enum InvalidAddressError<A: RegisterAddress> {
 impl<A: RegisterAddress> Display for InvalidAddressError<A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Null => {
+                write!(f, "address is null")
+            }
             Self::InvalidBaseAddress(addr) => {
                 write!(f, "invalid register address: {addr:x?}")
             }

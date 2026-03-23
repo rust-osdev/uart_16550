@@ -7,6 +7,9 @@
 - New public methods:
   - `Uart16550::ready_to_receive()`
   - `Uart16550::ready_to_send()`
+- Documentation improvements
+- Internal safety fixes (there was no UB, just making the internal code more
+  robust)
 
 ## 0.5.0 - 2026-03-20
 
