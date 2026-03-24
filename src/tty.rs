@@ -17,6 +17,7 @@ use crate::backend::{PioBackend, PortIoAddress};
 use crate::{Config, InitError, InvalidAddressError, LoopbackError, Uart16550};
 use core::error::Error;
 use core::fmt::{self, Display, Formatter};
+use core::ptr::NonNull;
 
 /// Errors that [`Uart16550Tty::new_port()`] and [`Uart16550Tty::new_mmio()`] may
 /// return.
@@ -88,9 +89,13 @@ impl<A: RegisterAddress + 'static> Error for Uart16550TtyError<A> {
 /// ```rust,no_run
 /// use uart_16550::{Config, Uart16550Tty};
 /// use core::fmt::Write;
+/// use core::ptr::{self, NonNull};
+///
+/// let mmio_address = ptr::with_exposed_provenance_mut::<u8>(0x1000);
+/// let mmio_address = NonNull::new(mmio_address).unwrap();
 ///
 /// // SAFETY: The address is valid and we have exclusive access.
-/// let mut uart = unsafe { Uart16550Tty::new_mmio(0x1000 as *mut _, 4, Config::default()).expect("should initialize device") };
+/// let mut uart = unsafe { Uart16550Tty::new_mmio(mmio_address, 4, Config::default()).expect("should initialize device") };
 /// uart.write_str("hello world\nhow's it going?");
 /// ```
 ///
@@ -164,7 +169,7 @@ impl Uart16550Tty<MmioBackend> {
     ///
     /// [`NUM_REGISTERS`]: crate::spec::NUM_REGISTERS
     pub unsafe fn new_mmio(
-        base_address: *mut u8,
+        base_address: NonNull<u8>,
         stride: u8,
         config: Config,
     ) -> Result<Self, Uart16550TtyError<MmioAddress>> {

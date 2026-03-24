@@ -10,6 +10,16 @@
 - Documentation improvements
 - Internal safety fixes (there was no UB, just making the internal code more
   robust)
+- `Uart16550::new_mmio()` and `Uart16550Ttty::new_mmio()` now accept a
+  `NonNull<u8>` instead of a `*mut u8`. The recommended way to construct the
+  MMIO address is to use: \
+  ```rust
+  fn main() {
+    let mmio_address = ptr::with_exposed_provenance_mut::<u8>(0x1000);
+    let mmio_address = NonNull::new(mmio_address).unwrap();
+    let mut uart = unsafe { Uart16550::new_mmio(mmio_address, 4).unwrap() };
+  }
+  ```
 
 ## 0.5.0 - 2026-03-20
 

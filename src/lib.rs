@@ -77,9 +77,13 @@
 //!
 //! ```rust,no_run
 //! use uart_16550::{Config, Uart16550};
+//! use core::ptr::{self, NonNull};
+//!
+//! let mmio_address = ptr::with_exposed_provenance_mut::<u8>(0x1000);
+//! let mmio_address = NonNull::new(mmio_address).unwrap();
 //!
 //! // SAFETY: The address is valid and we have exclusive access.
-//! let mut uart = unsafe { Uart16550::new_mmio(0x1000 as *mut _, 4).unwrap() };
+//! let mut uart = unsafe { Uart16550::new_mmio(mmio_address, 4).unwrap() };
 //! uart.init(Config::default()).expect("should init device successfully");
 //! uart.send_bytes_exact(b"hello world!");
 //! ```
@@ -88,9 +92,13 @@
 //!
 //! ```rust,no_run
 //! use uart_16550::{Config, Uart16550};
+//! use core::ptr::{self, NonNull};
+//!
+//! let mmio_address = ptr::with_exposed_provenance_mut::<u8>(0x1000);
+//! let mmio_address = NonNull::new(mmio_address).unwrap();
 //!
 //! // SAFETY: The address is valid and we have exclusive access.
-//! let mut uart = unsafe { Uart16550::new_mmio(0x1000 as *mut _, 4).expect("should be valid port") };
+//! let mut uart = unsafe { Uart16550::new_mmio(mmio_address, 4).expect("should be valid port") };
 //! //                                 ^ or `new_port(0x3f8)`
 //! uart.init(Config::default()).expect("should init device successfully");
 //! uart.test_loopback().expect("should have working loopback mode");
@@ -214,9 +222,13 @@ mod tty;
 ///
 /// ```rust,no_run
 /// use uart_16550::{Config, Uart16550};
+/// use core::ptr::{self, NonNull};
+///
+/// let mmio_address = ptr::with_exposed_provenance_mut::<u8>(0x1000);
+/// let mmio_address = NonNull::new(mmio_address).unwrap();
 ///
 /// // SAFETY: The address is valid and we have exclusive access.
-/// let mut uart = unsafe { Uart16550::new_mmio(0x1000 as *mut _, 4).unwrap() };
+/// let mut uart = unsafe { Uart16550::new_mmio(mmio_address, 4).unwrap() };
 /// uart.init(Config::default()).expect("should init device successfully");
 /// uart.send_bytes_exact(b"hello world!");
 /// ```
@@ -225,9 +237,13 @@ mod tty;
 ///
 /// ```rust,no_run
 /// use uart_16550::{Config, Uart16550};
+/// use core::ptr::{self, NonNull};
+///
+/// let mmio_address = ptr::with_exposed_provenance_mut::<u8>(0x1000);
+/// let mmio_address = NonNull::new(mmio_address).unwrap();
 ///
 /// // SAFETY: The address is valid and we have exclusive access.
-/// let mut uart = unsafe { Uart16550::new_mmio(0x1000 as *mut _, 4).expect("should be valid port") };
+/// let mut uart = unsafe { Uart16550::new_mmio(mmio_address, 4).expect("should be valid port") };
 /// //                                 ^ or `new_port(0x3f8)`
 /// uart.init(Config::default()).expect("should init device successfully");
 /// uart.test_loopback().expect("should have working loopback mode");
@@ -333,10 +349,9 @@ impl Uart16550<MmioBackend> {
     /// the **whole lifetime** of the device. Further, all [`NUM_REGISTERS`]
     /// registers must be safely reachable from the base address.
     pub unsafe fn new_mmio(
-        base_address: *mut u8,
+        base_address: NonNull<u8>,
         stride: u8,
     ) -> Result<Self, InvalidAddressError<MmioAddress>> {
-        let base_address = NonNull::new(base_address).ok_or(InvalidAddressError::Null)?;
         let base_address = MmioAddress(base_address);
 
         if stride == 0 || !stride.is_power_of_two() {
@@ -989,6 +1004,7 @@ impl ConfigRegisterDump {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::ptr;
 
     #[test]
     fn constructors() {
@@ -1004,34 +1020,37 @@ mod tests {
 
         // SAFETY: We just test the constructor but do not access the device.
         unsafe {
-            assert2::assert!(let Ok(_) = Uart16550::new_mmio(0x1000 as *mut _, 1));
-            assert2::assert!(let Ok(_) = Uart16550::new_mmio(0x1000 as *mut _, 2));
-            assert2::assert!(let Ok(_) = Uart16550::new_mmio(0x1000 as *mut _, 4));
-            assert2::assert!(let Ok(_) = Uart16550::new_mmio(0x1000 as *mut _, 8));
+            let mmio_address = ptr::with_exposed_provenance_mut::<u8>(0x1000);
+            let mmio_address = NonNull::new(mmio_address).unwrap();
+
+            assert2::assert!(let Ok(_) = Uart16550::new_mmio(mmio_address, 1));
+            assert2::assert!(let Ok(_) = Uart16550::new_mmio(mmio_address, 2));
+            assert2::assert!(let Ok(_) = Uart16550::new_mmio(mmio_address, 4));
+            assert2::assert!(let Ok(_) = Uart16550::new_mmio(mmio_address, 8));
 
             assert2::assert!(
                 let Err(InvalidAddressError::InvalidStride(0)) =
-                    Uart16550::new_mmio(0x1000 as *mut _, 0)
+                    Uart16550::new_mmio(mmio_address, 0)
             );
             assert2::assert!(
                 let Err(InvalidAddressError::InvalidStride(3)) =
-                    Uart16550::new_mmio(0x1000 as *mut _, 3)
+                    Uart16550::new_mmio(mmio_address, 3)
             );
             assert2::assert!(
                 let Err(InvalidAddressError::InvalidStride(5)) =
-                    Uart16550::new_mmio(0x1000 as *mut _, 5)
+                    Uart16550::new_mmio(mmio_address, 5)
             );
             assert2::assert!(
                 let Err(InvalidAddressError::InvalidStride(6)) =
-                    Uart16550::new_mmio(0x1000 as *mut _, 6)
+                    Uart16550::new_mmio(mmio_address, 6)
             );
             assert2::assert!(
                 let Err(InvalidAddressError::InvalidStride(7)) =
-                    Uart16550::new_mmio(0x1000 as *mut _, 7)
+                    Uart16550::new_mmio(mmio_address, 7)
             );
             assert2::assert!(
                 let Err(InvalidAddressError::InvalidStride(9)) =
-                    Uart16550::new_mmio(0x1000 as *mut _, 9)
+                    Uart16550::new_mmio(mmio_address, 9)
             );
         }
     }
@@ -1062,8 +1081,10 @@ mod tests {
             // Unblock init()
             memory[offsets::LSR] = LSR::TRANSMITTER_EMPTY.bits();
 
+            let mmio_address = NonNull::new(memory.as_mut_ptr()).unwrap();
+
             // SAFETY: We are operating on valid memory.
-            let mut uart = unsafe { Uart16550::new_mmio(memory.as_mut_ptr(), STRIDE as u8) }
+            let mut uart = unsafe { Uart16550::new_mmio(mmio_address, STRIDE as u8) }
                 .expect("should be able to create the dummy MMIO");
 
             uart.init(config.clone())
@@ -1083,8 +1104,10 @@ mod tests {
             // Unblock init()
             memory[offsets::LSR * STRIDE] = LSR::TRANSMITTER_EMPTY.bits();
 
+            let mmio_address = NonNull::new(memory.as_mut_ptr()).unwrap();
+
             // SAFETY: We are operating on valid memory.
-            let mut uart = unsafe { Uart16550::new_mmio(memory.as_mut_ptr(), STRIDE as u8) }
+            let mut uart = unsafe { Uart16550::new_mmio(mmio_address, STRIDE as u8) }
                 .expect("should be able to create the dummy MMIO");
 
             uart.init(config)
