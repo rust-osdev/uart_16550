@@ -223,10 +223,10 @@ impl Backend for PioBackend {
         unsafe {
             let ret: u8;
             asm!(
-                "inb %dx, %al",
-                in("dx") port.0,
-                out("al") ret,
-                options(att_syntax, nostack, preserves_flags)
+            "inb %dx, %al",
+            in("dx") port.0,
+            out("al") ret,
+            options(att_syntax, nostack, preserves_flags)
             );
             ret
         }
@@ -237,10 +237,10 @@ impl Backend for PioBackend {
         // SAFETY: The caller ensured that the I/O port is safe to use.
         unsafe {
             asm!(
-                "outb %al, %dx",
-                in("al") value,
-                in("dx") port.0,
-                options(att_syntax, nostack, preserves_flags)
+            "outb %al, %dx",
+            in("al") value,
+            in("dx") port.0,
+            options(att_syntax, nostack, preserves_flags)
             );
         }
     }
@@ -265,10 +265,10 @@ mod arch {
         // SAFETY: Caller ensures the address is valid MMIO memory.
         unsafe {
             core::arch::asm!(
-                "ldrb {ret:w}, [{ptr}]",
-                ptr = in(reg) ptr,
-                ret = out(reg) ret,
-                options(nostack, preserves_flags)
+            "ldrb {ret:w}, [{ptr}]",
+            ptr = in(reg) ptr,
+            ret = out(reg) ret,
+            options(nostack, preserves_flags)
             );
         }
         ret
@@ -290,10 +290,10 @@ mod arch {
         // SAFETY: Caller ensures the address is valid MMIO memory.
         unsafe {
             core::arch::asm!(
-                "strb {val:w}, [{ptr}]",
-                val = in(reg) value,
-                ptr = in(reg) ptr,
-                options(nostack, preserves_flags)
+            "strb {val:w}, [{ptr}]",
+            val = in(reg) value,
+            ptr = in(reg) ptr,
+            options(nostack, preserves_flags)
             );
         }
     }
