@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+// Automatically add badges for cfg feature gates in documentation.
+// https://doc.rust-lang.org/unstable-book/language-features/doc-cfg.html
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
 //! # uart_16550
 //!
 //! Simple yet highly configurable low-level driver for
@@ -46,24 +50,41 @@
 //!
 //! # Overview
 //!
-//! Use [`Uart16550Tty`] for a quick start. For more fine-grained low-level
-//! control, please have a look at [`Uart16550`] instead.
+//! Use [`Uart16550Tty`] for a quick start to write to a terminal via your
+//! serial connection. For more fine-grained low-level control, please have a
+//! look at [`Uart16550`] instead. The following examples show usage of the
+//! latter.
 //!
-//! # Example (Minimalistic)
+//! # Example (Minimal - x86 Port IO)
 //!
-//! ```rust,no_run
-//! use uart_16550::{Config, Uart16550Tty};
-//! use core::fmt::Write;
+#![cfg_attr(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    doc = "```rust,no_run"
+)]
+#![cfg_attr(
+    not(any(target_arch = "x86", target_arch = "x86_64")),
+    doc = "```rust,ignore"
+)]
+//! use uart_16550::{Config, Uart16550};
 //!
-//! // SAFETY: The address is valid and we have exclusive access.
-//! let mut uart = unsafe { Uart16550Tty::new_mmio(0x1000 as *mut _, 4, Config::default()).expect("should initialize device") };
-//! //                                    ^ or `new_port(0x3f8, Config::default())`
-//! uart.write_str("hello world\nhow's it going?");
+//! // SAFETY: The port is valid and we have exclusive access.
+//! let mut uart = unsafe { Uart16550::new_port(0x3f8).unwrap() };
+//! uart.init(Config::default()).expect("should init device successfully");
+//! uart.send_bytes_exact(b"hello world!");
 //! ```
 //!
-//! See [`Uart16550Tty`] for more details.
+//! # Example (Minimal - MMIO)
 //!
-//! # Example (More low-level control)
+//! ```rust,no_run
+//! use uart_16550::{Config, Uart16550};
+//!
+//! // SAFETY: The address is valid and we have exclusive access.
+//! let mut uart = unsafe { Uart16550::new_mmio(0x1000 as *mut _, 4).unwrap() };
+//! uart.init(Config::default()).expect("should init device successfully");
+//! uart.send_bytes_exact(b"hello world!");
+//! ```
+//!
+//! # Example (Recommended)
 //!
 //! ```rust,no_run
 //! use uart_16550::{Config, Uart16550};
@@ -73,6 +94,7 @@
 //! //                                 ^ or `new_port(0x3f8)`
 //! uart.init(Config::default()).expect("should init device successfully");
 //! uart.test_loopback().expect("should have working loopback mode");
+//! // Note: Might fail on real hardware with some null-modem cables
 //! uart.check_connected().expect("should have physically connected receiver");
 //! uart.send_bytes_exact(b"hello world!");
 //! ```
@@ -142,7 +164,7 @@ pub use crate::error::*;
 pub use crate::tty::*;
 
 use crate::backend::{Backend, MmioAddress, MmioBackend};
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64", doc))]
 use crate::backend::{PioBackend, PortIoAddress};
 use crate::spec::registers::{DLL, DLM, FCR, IER, ISR, LCR, LSR, MCR, MSR, SPR, offsets};
 use crate::spec::{FIFO_SIZE, NUM_REGISTERS, calc_baud_rate, calc_divisor};
@@ -167,16 +189,34 @@ mod tty;
 /// on the underlying hardware.
 ///
 /// This type is generic over x86 port I/O and MMIO via the corresponding
-/// constructors (`Uart16550::new_port()` and [`Uart16550::new_mmio()`].
+/// constructors [`Uart16550::new_port()`] and [`Uart16550::new_mmio()`].
+/// The following examples show usage of the latter.
 ///
-/// # Example (Minimal)
+/// # Example (Minimal - x86 Port IO)
+///
+#[cfg_attr(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    doc = "```rust,no_run"
+)]
+#[cfg_attr(
+    not(any(target_arch = "x86", target_arch = "x86_64")),
+    doc = "```rust,ignore"
+)]
+/// use uart_16550::{Config, Uart16550};
+///
+/// // SAFETY: The port is valid and we have exclusive access.
+/// let mut uart = unsafe { Uart16550::new_port(0x3f8).unwrap() };
+/// uart.init(Config::default()).expect("should init device successfully");
+/// uart.send_bytes_exact(b"hello world!");
+/// ```
+///
+/// # Example (Minimal - MMIO)
 ///
 /// ```rust,no_run
 /// use uart_16550::{Config, Uart16550};
 ///
 /// // SAFETY: The address is valid and we have exclusive access.
 /// let mut uart = unsafe { Uart16550::new_mmio(0x1000 as *mut _, 4).unwrap() };
-/// //                                 ^ or `new_port(0x3f8)`
 /// uart.init(Config::default()).expect("should init device successfully");
 /// uart.send_bytes_exact(b"hello world!");
 /// ```
@@ -191,6 +231,7 @@ mod tty;
 /// //                                 ^ or `new_port(0x3f8)`
 /// uart.init(Config::default()).expect("should init device successfully");
 /// uart.test_loopback().expect("should have working loopback mode");
+/// // Note: Might fail on real hardware with some null-modem cables
 /// uart.check_connected().expect("should have physically connected receiver");
 /// uart.send_bytes_exact(b"hello world!");
 /// ```
@@ -217,15 +258,16 @@ mod tty;
 /// - [`Uart16550::send_bytes_exact`]: Transmit all bytes, looping until the
 ///   entire buffer has been written.
 /// - [`Uart16550::receive_bytes_exact`]: Receive bytes until the provided
-///   buffer is completely filled.
+///   buffer is filled.
 ///
 /// These methods spin until completion.
 ///
 /// # MMIO and Port I/O
 ///
 /// Uart 16550 devices are typically mapped via port I/O on x86 and via MMIO on
-/// other platforms. The constructors `new_port()` and `new_mmio()` create an
-/// instance of a device with the corresponding backend.
+/// other platforms. The constructors [`Uart16550::new_port()`] and
+/// [`Uart16550::new_mmio()`] create an instance of a device with the
+/// corresponding backend.
 ///
 /// # Hints for Usage on Real Hardware
 ///
@@ -244,7 +286,7 @@ pub struct Uart16550<B: Backend> {
     config: Config,
 }
 
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64", doc))]
 impl Uart16550<PioBackend> {
     /// Creates a new [`Uart16550`] backed by x86 port I/O.
     ///
@@ -951,7 +993,7 @@ mod tests {
     #[test]
     fn constructors() {
         // SAFETY: We just test the constructor but do not access the device.
-        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64", doc))]
         unsafe {
             assert2::assert!(let Ok(_) = Uart16550::new_port(0x3f8));
             assert2::assert!(let Ok(_) = Uart16550::new_port(u16::MAX - NUM_REGISTERS as u16));

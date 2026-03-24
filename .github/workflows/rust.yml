@@ -92,10 +92,15 @@ jobs:
       - run: rustup component add miri
       - run: cargo miri test --tests
 
+  # Style + documentation checks
   style_checks:
-    runs-on: ubuntu-latest
+    runs-on: "${{ matrix.runs-on }}"
     strategy:
       matrix:
+        runs-on:
+          - macos-latest # aarch64
+          - ubuntu-latest # x86_64
+          - windows-latest # x86_64
         rust:
           - stable
     steps:
@@ -113,3 +118,7 @@ jobs:
         run: cargo clippy --all-targets
       - name: Rustdoc
         run: cargo doc --no-deps --document-private-items
+      - name: Rustdoc (doc_cfg + nightly)
+        env:
+          RUSTDOCFLAGS: --cfg docsrs
+        run: cargo +nightly doc --no-deps --document-private-items
