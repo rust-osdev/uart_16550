@@ -223,10 +223,10 @@ impl Backend for PioBackend {
         unsafe {
             let ret: u8;
             asm!(
-            "inb %dx, %al",
-            in("dx") port.0,
-            out("al") ret,
-            options(att_syntax, nostack, preserves_flags)
+                "inb %dx, %al",
+                in("dx") port.0,
+                out("al") ret,
+                options(att_syntax, nostack, preserves_flags)
             );
             ret
         }
@@ -237,10 +237,10 @@ impl Backend for PioBackend {
         // SAFETY: The caller ensured that the I/O port is safe to use.
         unsafe {
             asm!(
-            "outb %al, %dx",
-            in("al") value,
-            in("dx") port.0,
-            options(att_syntax, nostack, preserves_flags)
+                "outb %al, %dx",
+                in("al") value,
+                in("dx") port.0,
+                options(att_syntax, nostack, preserves_flags)
             );
         }
     }
