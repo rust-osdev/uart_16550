@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.0 - 2026-03-28
+
 - Rename `Uart16550::try_send_bytes()` to `Uart16550::send_bytes()`
 - Rename `Uart16550::try_receive_bytes()` to `Uart16550::receive_bytes()`
 - New public methods:
@@ -12,9 +14,10 @@
   robust)
 - `Uart16550::new_mmio()` and `Uart16550Ttty::new_mmio()` now accept a
   `NonNull<u8>` instead of a `*mut u8`. The recommended way to construct the
-  MMIO address is to use: \
+  MMIO address is to use:
   ```rust
   fn main() {
+    // External MMIO address.
     let mmio_address = ptr::with_exposed_provenance_mut::<u8>(0x1000);
     let mmio_address = NonNull::new(mmio_address).unwrap();
     let mut uart = unsafe { Uart16550::new_mmio(mmio_address, 4).unwrap() };
