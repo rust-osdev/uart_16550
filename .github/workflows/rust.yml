@@ -1,6 +1,6 @@
 name: Build
 
-on: [  pull_request, merge_group ]
+on: [ pull_request, merge_group ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
@@ -40,9 +40,8 @@ jobs:
           cargo build --verbose --all-features --target aarch64-unknown-uefi
           cargo build --verbose --all-features --target i686-unknown-uefi
           cargo build --verbose --all-features --target riscv64gc-unknown-none-elf
+          cargo build --verbose --all-features --target thumbv7em-none-eabihf
           cargo build --verbose --all-features --target x86_64-unknown-uefi
-      - name: Build (no_std, aarch64)
-        run: cargo build --verbose --all-features --target thumbv7em-none-eabihf
       - name: Run tests
         run: cargo test --verbose --all-features
 
