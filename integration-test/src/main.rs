@@ -25,7 +25,14 @@ use log::error;
 use qemu_exit::QEMUExit;
 use uart_16550::{Config, Uart16550Tty};
 
+mod cpuid;
 mod debugcon;
+mod pvh;
+
+fn runs_inside_qemu() -> bool {
+    let cpuid = cpuid::Cpuid::new();
+    cpuid.has_hypervisor_bit() && cpuid.cpu_brand_contains_qemu()
+}
 
 /// Entry into the Rust code.
 #[unsafe(no_mangle)]
@@ -46,6 +53,27 @@ fn exit_qemu(success: bool) -> ! {
     }
 }
 
+/// Exits Cloud Hypervisor via the ACPI shutdown device.
+fn exit_chv() -> ! {
+    unsafe {
+        core::arch::asm!(
+            "outw %ax, %dx",
+            in("ax") 0x34,
+            in("dx") 0x600,
+            options(att_syntax, noreturn)
+        )
+    }
+}
+
+fn exit_vmm(success: bool) -> ! {
+    if runs_inside_qemu() {
+        exit_qemu(success);
+    } else {
+        exit_chv();
+    }
+    // unreachable!()
+}
+
 /// Executes the kernel's main logic.
 fn main() -> anyhow::Result<()> {
     debugcon::DebugconLogger::init();
@@ -58,11 +86,11 @@ fn main() -> anyhow::Result<()> {
 
     // TODO MMIO test? QEMU doesn't offer this (on x86).
 
-    exit_qemu(true);
+    exit_vmm(true);
 }
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
     error!("error: {}", info);
-    exit_qemu(false);
+    exit_vmm(false);
 }

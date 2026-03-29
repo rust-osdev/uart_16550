@@ -1,4 +1,4 @@
 target
 
-serial.mmio.txt
-serial.pio.txt
+serial.chv.pio.txt
+serial.qemu.pio.txt
