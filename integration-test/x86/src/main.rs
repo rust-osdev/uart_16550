@@ -34,16 +34,13 @@ fn runs_inside_qemu() -> bool {
     cpuid.has_hypervisor_bit() && cpuid.cpu_brand_contains_qemu()
 }
 
-/// Entry into the Rust code.
 #[unsafe(no_mangle)]
 extern "C" fn rust_entry() -> ! {
     main().expect("Should run kernel");
     unreachable!();
 }
 
-/// Exits QEMU via the shutdown device on the i440fx board.
 fn exit_qemu(success: bool) -> ! {
-    // configured in Makefile
     let port = 0xf4;
     let exit = qemu_exit::X86::new(port, 73);
     if success {
@@ -53,7 +50,6 @@ fn exit_qemu(success: bool) -> ! {
     }
 }
 
-/// Exits Cloud Hypervisor via the ACPI shutdown device.
 fn exit_chv() -> ! {
     unsafe {
         core::arch::asm!(
@@ -71,20 +67,15 @@ fn exit_vmm(success: bool) -> ! {
     } else {
         exit_chv();
     }
-    // unreachable!()
 }
 
-/// Executes the kernel's main logic.
 fn main() -> anyhow::Result<()> {
     debugcon::DebugconLogger::init();
 
-    // SAFETY: we have exclusive access and the port is valid
     unsafe {
         let mut uart = Uart16550Tty::new_port(0x3f8, Config::default())?;
         uart.write_str("hello from serial via x86 port I/O")?;
     }
-
-    // TODO MMIO test? QEMU doesn't offer this (on x86).
 
     exit_vmm(true);
 }

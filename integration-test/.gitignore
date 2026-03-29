@@ -1,4 +1,6 @@
 target
+x86/target
 
 serial.chv.pio.txt
 serial.qemu.pio.txt
+cloud-hypervisor.stderr.txt
