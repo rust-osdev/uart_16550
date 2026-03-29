@@ -6,7 +6,10 @@
 # rustc 1.96 - nightly needed for the build-std feature
 channel = "nightly-2026-03-17"
 profile = "minimal"
-targets = [ "x86_64-unknown-linux-gnu" ]
+targets = [
+  "x86_64-unknown-linux-gnu",
+  "riscv64gc-unknown-none-elf",
+]
 components = [
   "cargo",
   "clippy",

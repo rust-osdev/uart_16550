@@ -40,7 +40,7 @@ run_chv: | build
 	  --console off \
 	  --debug-console tty \
 	  --serial file=serial.chv.pio.txt \
-	  --kernel target/x86-unknown-none/release/kernel-x86.elf64
+	  --kernel target/x86-unknown-none/release/kernel-x86.elf64; \
 	rc=$$? ; \
 	if [ $$rc -ne 0 ]; then \
 		echo "Cloud Hypervisor Test Run Failed. rc=$$rc" >&2 ; \

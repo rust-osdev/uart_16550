@@ -19,7 +19,7 @@ run: | build
 		-monitor none \
 		-no-reboot \
 		-nodefaults \
-		-serial file:serial.qemu.mmio-riscv.txt
+		-serial file:serial.qemu.mmio-riscv.txt; \
 	rc=$$? ; \
 	if [ $$rc -ne 0 ]; then \
 		echo "QEMU RISC-V MMIO Test Run Failed. rc=$$rc" >&2 ; \
