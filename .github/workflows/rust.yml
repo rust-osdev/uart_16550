@@ -48,6 +48,7 @@ jobs:
 
   integration_test:
     runs-on:  ubuntu-latest
+    name: Integration Test
     steps:
       - uses: actions/checkout@v6
       - name: Setup Rust toolchain
@@ -58,7 +59,7 @@ jobs:
         with:
           key: "integration-test"
           cache-directories:
-            ./test/target
+            ./integration-test/target
       - name: Install QEMU
         run: |
           sudo apt-get update
