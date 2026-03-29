@@ -50,23 +50,27 @@ run_chv: | build
 
 .PHONY: run_chv_if_supported
 run_chv_if_supported: | build
-	cloud-hypervisor \
-	  --cpus boot=1 \
-	  --memory size=64M \
-	  --console off \
-	  --debug-console tty \
-	  --serial file=serial.chv.pio.txt \
-	  --kernel target/x86-unknown-none/release/kernel-x86.elf64 \
-	  2>cloud-hypervisor.stderr.txt; \
-	rc=$$? ; \
-	if [ $$rc -eq 0 ]; then \
-		grep "hello from serial via x86 port I/O" ./serial.chv.pio.txt ; \
-	elif grep -q "no supported hypervisor" ./cloud-hypervisor.stderr.txt; then \
-		echo "Skipping Cloud Hypervisor test: no supported hypervisor" ; \
+	if ! command -v cloud-hypervisor >/dev/null 2>&1; then \
+		echo "WARNING: Skipping Cloud Hypervisor test because cloud-hypervisor is not in PATH." >&2 ; \
+	elif [ ! -c /dev/kvm ]; then \
+		echo "WARNING: Skipping Cloud Hypervisor test because /dev/kvm is not available." >&2 ; \
 	else \
-		echo "Cloud Hypervisor Test Run Failed. rc=$$rc" >&2 ; \
-		cat ./cloud-hypervisor.stderr.txt >&2 ; \
-		exit 1 ; \
+		cloud-hypervisor \
+		  --cpus boot=1 \
+		  --memory size=64M \
+		  --console off \
+		  --debug-console tty \
+		  --serial file=serial.chv.pio.txt \
+		  --kernel target/x86-unknown-none/release/kernel-x86.elf64 \
+		  2>cloud-hypervisor.stderr.txt; \
+		rc=$$? ; \
+		if [ $$rc -eq 0 ]; then \
+			grep "hello from serial via x86 port I/O" ./serial.chv.pio.txt ; \
+		else \
+			echo "Cloud Hypervisor Test Run Failed. rc=$$rc" >&2 ; \
+			cat ./cloud-hypervisor.stderr.txt >&2 ; \
+			exit 1 ; \
+		fi ; \
 	fi
 
 .PHONY: run
