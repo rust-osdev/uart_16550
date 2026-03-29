@@ -58,18 +58,26 @@ jobs:
         with:
           key: "integration-test"
           cache-directories:
-            ./integration-test/target
-      - name: Install QEMU
+            ./integration-test/x86/target
+            ./integration-test/riscv/target
+      - name: Install integration-test dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-system-i386
+          sudo apt-get install -y \
+            make \
+            qemu-system-misc \
+            qemu-system-x86
 
       - name: Verify QEMU installation
-        run: qemu-system-i386 --version
+        run: |
+          qemu-system-i386 --version
+          qemu-system-riscv64 --version
       - name: Build
-        run: cd test && make
+        working-directory: integration-test
+        run: make
       - name: Run
-        run: cd test && make run
+        working-directory: integration-test
+        run: make run
 
   miri:
     runs-on: ubuntu-latest
