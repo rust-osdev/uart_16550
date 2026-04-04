@@ -1,5 +1,5 @@
 [package]
-name = "kernel"
+name = "kernel-x86"
 version = "0.1.0"
 edition = "2024"
 publish = false
@@ -12,5 +12,5 @@ opt-level = "s"
 [dependencies]
 anyhow = { version = "1.0", default-features = false }
 log = { version = "0.4", default-features = false }
-uart_16550 = { path = "../." }
-qemu-exit = {  version = "3.0.2", default-features = false }
+qemu-exit = { version = "3.0.2", default-features = false }
+uart_16550 = { path = "../../" }

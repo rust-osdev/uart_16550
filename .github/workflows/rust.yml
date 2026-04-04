@@ -1,6 +1,6 @@
 name: Build
 
-on: [  pull_request, merge_group ]
+on: [ pull_request, merge_group ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
@@ -40,14 +40,14 @@ jobs:
           cargo build --verbose --all-features --target aarch64-unknown-uefi
           cargo build --verbose --all-features --target i686-unknown-uefi
           cargo build --verbose --all-features --target riscv64gc-unknown-none-elf
+          cargo build --verbose --all-features --target thumbv7em-none-eabihf
           cargo build --verbose --all-features --target x86_64-unknown-uefi
-      - name: Build (no_std, aarch64)
-        run: cargo build --verbose --all-features --target thumbv7em-none-eabihf
       - name: Run tests
         run: cargo test --verbose --all-features
 
   integration_test:
     runs-on:  ubuntu-latest
+    name: Integration Test
     steps:
       - uses: actions/checkout@v6
       - name: Setup Rust toolchain
@@ -58,18 +58,26 @@ jobs:
         with:
           key: "integration-test"
           cache-directories:
-            ./test/target
-      - name: Install QEMU
+            ./integration-test/x86/target
+            ./integration-test/riscv/target
+      - name: Install integration-test dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-system-i386
+          sudo apt-get install -y \
+            make \
+            qemu-system-misc \
+            qemu-system-x86
 
       - name: Verify QEMU installation
-        run: qemu-system-i386 --version
+        run: |
+          qemu-system-i386 --version
+          qemu-system-riscv64 --version
       - name: Build
-        run: cd test && make
+        working-directory: integration-test
+        run: make
       - name: Run
-        run: cd test && make run
+        working-directory: integration-test
+        run: make run
 
   miri:
     runs-on: ubuntu-latest
