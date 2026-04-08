@@ -3,9 +3,10 @@ ENTRY(start)
 
 PHDRS
 {
-    kernel_rx  PT_LOAD FLAGS(5);
-    kernel_rw  PT_LOAD FLAGS(6);
-    kernel_ro  PT_LOAD FLAGS(4);
+    kernel_rx   PT_LOAD FLAGS(5);
+    kernel_rw   PT_LOAD FLAGS(6);
+    kernel_ro   PT_LOAD FLAGS(4);
+    note        PT_NOTE;
 }
 
 SECTIONS
@@ -37,6 +38,10 @@ SECTIONS
       *(COMMON)
       *(.bss .bss.*)
     } : kernel_rw
+
+    .note.xen_pvh : {
+        *(.note.xen_pvh)
+    } : note
 
     /DISCARD/ :
     {

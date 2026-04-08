@@ -8,7 +8,6 @@ static LOGGER: DebugconLogger = DebugconLogger;
 struct Debugcon;
 
 impl Debugcon {
-    /// I/O port of QEMUs debugcon device on x86.
     const IO_PORT: u16 = 0xe9;
 
     pub fn write_byte(byte: u8) {
@@ -36,7 +35,6 @@ pub struct DebugconLogger;
 
 impl DebugconLogger {
     pub fn init() {
-        // Ignore, as we can't do anything about it here.
         let _ = log::set_logger(&LOGGER);
         log::set_max_level(LevelFilter::Trace);
         info!("Logger initialized!");
@@ -49,7 +47,6 @@ impl Log for DebugconLogger {
     }
 
     fn log(&self, record: &Record) {
-        // Ignore result as we can't do anything about it.
         let _ = writeln!(
             Debugcon,
             "[{:>5}: {}@{}]: {}",
