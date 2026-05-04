@@ -25,18 +25,22 @@ use log::error;
 use qemu_exit::QEMUExit;
 use uart_16550::{Config, Uart16550Tty};
 
+mod cpuid;
 mod debugcon;
+mod pvh;
 
-/// Entry into the Rust code.
+fn runs_inside_qemu() -> bool {
+    let cpuid = cpuid::Cpuid::new();
+    cpuid.has_hypervisor_bit() && cpuid.cpu_brand_contains_qemu()
+}
+
 #[unsafe(no_mangle)]
 extern "C" fn rust_entry() -> ! {
     main().expect("Should run kernel");
     unreachable!();
 }
 
-/// Exits QEMU via the shutdown device on the i440fx board.
 fn exit_qemu(success: bool) -> ! {
-    // configured in Makefile
     let port = 0xf4;
     let exit = qemu_exit::X86::new(port, 73);
     if success {
@@ -46,23 +50,38 @@ fn exit_qemu(success: bool) -> ! {
     }
 }
 
-/// Executes the kernel's main logic.
+fn exit_chv() -> ! {
+    unsafe {
+        core::arch::asm!(
+            "outw %ax, %dx",
+            in("ax") 0x34,
+            in("dx") 0x600,
+            options(att_syntax, noreturn)
+        )
+    }
+}
+
+fn exit_vmm(success: bool) -> ! {
+    if runs_inside_qemu() {
+        exit_qemu(success);
+    } else {
+        exit_chv();
+    }
+}
+
 fn main() -> anyhow::Result<()> {
     debugcon::DebugconLogger::init();
 
-    // SAFETY: we have exclusive access and the port is valid
     unsafe {
         let mut uart = Uart16550Tty::new_port(0x3f8, Config::default())?;
         uart.write_str("hello from serial via x86 port I/O")?;
     }
 
-    // TODO MMIO test? QEMU doesn't offer this (on x86).
-
-    exit_qemu(true);
+    exit_vmm(true);
 }
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
     error!("error: {}", info);
-    exit_qemu(false);
+    exit_vmm(false);
 }
