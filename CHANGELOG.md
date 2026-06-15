@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Breaking:** Changed the return type of `Uart16550::config(&self)` from
+  `(&Config, &B::Address)` to `(&Config, &B)`
+
 ## 0.6.0 - 2026-03-28
 
 - Rename `Uart16550::try_send_bytes()` to `Uart16550::send_bytes()`
