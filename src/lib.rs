@@ -297,7 +297,6 @@ mod tty;
 #[derive(Debug)]
 pub struct Uart16550<B: Backend> {
     backend: B,
-    base_address: B::Address,
     // The currently active config.
     config: Config,
 }
@@ -325,7 +324,6 @@ impl Uart16550<PioBackend> {
 
         Ok(Self {
             backend,
-            base_address,
             // Will be replaced by the actual config in init() afterwards.
             config: Config::default(),
         })
@@ -375,7 +373,6 @@ impl Uart16550<MmioBackend> {
 
         Ok(Self {
             backend,
-            base_address,
             // Will be replaced by the actual config in init() afterwards.
             config: Config::default(),
         })
@@ -911,12 +908,13 @@ impl<B: Backend> Uart16550<B> {
     /* ----- Misc ----------------------------------------------------------- */
 
     /// Returns the config from the last call to [`Self::init`] together with
-    /// the base address of the underlying hardware.
+    /// the corresponding [`Backend`].
     ///
+    /// Via the backend, you can get the base address using [`Backend::base()`].
     /// To get the values that are currently in the registers, consider using
     /// [`Self::config_register_dump`].
-    pub const fn config(&self) -> (&Config, B::Address) {
-        (&self.config, self.base_address)
+    pub const fn config(&self) -> (&Config, &B) {
+        (&self.config, &self.backend)
     }
 
     /// Queries the device and returns a [`ConfigRegisterDump`].
