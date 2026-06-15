@@ -38,7 +38,8 @@ extern "C" fn rust_entry() -> ! {
 fn exit_qemu(success: bool) -> ! {
     // configured in Makefile
     let port = 0xf4;
-    let exit = qemu_exit::X86::new(port, 73);
+    // SAFETY: we have exclusive access and the port is valid
+    let exit = unsafe { qemu_exit::X86::new(port, 73) };
     if success {
         exit.exit_success()
     } else {
