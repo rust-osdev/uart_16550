@@ -3,6 +3,7 @@
 use super::{Backend, RegisterAddress, private};
 use core::arch::asm;
 use core::num::NonZeroU8;
+use crate::spec::NUM_REGISTERS;
 
 /// x86 port I/O address.
 ///
@@ -43,6 +44,11 @@ impl Backend for PioBackend {
 
     #[inline(always)]
     unsafe fn _read_register(&mut self, port: PortIoAddress) -> u8 {
+        debug_assert!(port >= self.base());
+        let upper_bound_incl = NUM_REGISTERS - 1;
+        // Address is in the device's address range
+        debug_assert!(port.0 <= self.base().0.wrapping_add(u16::try_from(upper_bound_incl).unwrap()));
+
         // SAFETY: The caller ensured that the I/O port is safe to use.
         unsafe {
             let ret: u8;
@@ -58,6 +64,11 @@ impl Backend for PioBackend {
 
     #[inline(always)]
     unsafe fn _write_register(&mut self, port: PortIoAddress, value: u8) {
+        debug_assert!(port >= self.base());
+        let upper_bound_incl = NUM_REGISTERS - 1;
+        // Address is in the device's address range
+        debug_assert!(port.0 <= self.base().0.wrapping_add(u16::try_from(upper_bound_incl).unwrap()));
+
         // SAFETY: The caller ensured that the I/O port is safe to use.
         unsafe {
             asm!(
