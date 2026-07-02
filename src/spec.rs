@@ -100,7 +100,7 @@ pub fn calc_baud_rate(
         prescaler_division_factor
     );
 
-    let psd = prescaler_division_factor.map_or(0, |psd| psd);
+    let psd = prescaler_division_factor.unwrap_or(0);
     let a = frequency;
     let b = 16 * (psd + 1) * divisor;
 
