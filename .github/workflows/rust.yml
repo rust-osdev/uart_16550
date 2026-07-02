@@ -24,7 +24,7 @@ jobs:
           - nightly
           - 1.85.1 # MSVR
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -49,7 +49,7 @@ jobs:
   integration_test:
     runs-on:  ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -81,7 +81,7 @@ jobs:
         rust:
           - nightly
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -104,7 +104,7 @@ jobs:
         rust:
           - stable
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
