@@ -1,9 +1,9 @@
 //! x86 Port IO backend implementation.
 
 use super::{Backend, RegisterAddress, private};
+use crate::spec::NUM_REGISTERS;
 use core::arch::asm;
 use core::num::NonZeroU8;
-use crate::spec::NUM_REGISTERS;
 
 /// x86 port I/O address.
 ///
@@ -47,7 +47,13 @@ impl Backend for PioBackend {
         debug_assert!(port >= self.base());
         let upper_bound_incl = NUM_REGISTERS - 1;
         // Address is in the device's address range
-        debug_assert!(port.0 <= self.base().0.wrapping_add(u16::try_from(upper_bound_incl).unwrap()));
+        debug_assert!(
+            port.0
+                <= self
+                    .base()
+                    .0
+                    .wrapping_add(u16::try_from(upper_bound_incl).unwrap())
+        );
 
         // SAFETY: The caller ensured that the I/O port is safe to use.
         unsafe {
@@ -67,7 +73,13 @@ impl Backend for PioBackend {
         debug_assert!(port >= self.base());
         let upper_bound_incl = NUM_REGISTERS - 1;
         // Address is in the device's address range
-        debug_assert!(port.0 <= self.base().0.wrapping_add(u16::try_from(upper_bound_incl).unwrap()));
+        debug_assert!(
+            port.0
+                <= self
+                    .base()
+                    .0
+                    .wrapping_add(u16::try_from(upper_bound_incl).unwrap())
+        );
 
         // SAFETY: The caller ensured that the I/O port is safe to use.
         unsafe {
