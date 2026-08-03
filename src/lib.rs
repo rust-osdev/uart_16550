@@ -668,8 +668,6 @@ impl<B: Backend> Uart16550<B> {
     /// an established connection.
     pub fn ready_to_send(&mut self) -> Result<(), ByteSendError> {
         let lsr = self.lsr();
-        let msr = self.msr();
-        let mcr = self.mcr();
 
         // In FIFO mode, this bit is set when the transmitter’s FIFO is
         // completely empty, being 0 if there is at least one byte in the
@@ -681,8 +679,16 @@ impl<B: Backend> Uart16550<B> {
 
         // Software flow control. TODO, what to do with hardware flow control?
         // Is this something we can and should support?
-        if !mcr.contains(MCR::LOOP_BACK) && !msr.contains(MSR::CTS) {
-            return Err(ByteSendError::RemoteNotClearToSend);
+        if self.config.flow_control {
+            // The CTS line is meaningless when in loopback mode.
+            let mcr = self.mcr();
+            if !mcr.contains(MCR::LOOP_BACK) {
+                let msr = self.msr();
+
+                if !msr.contains(MSR::CTS) {
+                    return Err(ByteSendError::RemoteNotClearToSend);
+                }
+            }
         }
 
         Ok(())
