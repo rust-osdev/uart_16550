@@ -398,6 +398,8 @@ impl<B: Backend> Uart16550<B> {
     /// is done only in a context where such operations are valid and safe
     /// (e.g., you have exclusive device access).
     ///
+    /// It is recommended to disable interrupts before calling this function.
+    ///
     /// Further, the serial config must match the expectations of the receiver
     /// on the other side. Otherwise, garbage will be received.
     pub fn init(&mut self, config: Config) -> Result<(), InitError> {
@@ -677,9 +679,7 @@ impl<B: Backend> Uart16550<B> {
             return Err(ByteSendError::NoCapacity);
         }
 
-        // Software flow control. TODO, what to do with hardware flow control?
-        // Is this something we can and should support?
-        if self.config.flow_control {
+        if self.config.check_cts_before_sending {
             // The CTS line is meaningless when in loopback mode.
             let mcr = self.mcr();
             if !mcr.contains(MCR::LOOP_BACK) {
