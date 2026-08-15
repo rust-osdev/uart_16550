@@ -166,13 +166,12 @@ impl Config {
     /// configuration.
     ///
     /// More precisely, the default configuration uses a [8-N-1] transmission
-    /// with a baud rate of [`BaudRate::Baud9600`]. It also activates the FIFO
-    /// and the [`IER::DATA_READY`] interrupt.
+    /// with a baud rate of [`BaudRate::Baud9600`]. It also activates the FIFO.
     ///
     /// [8-N-1]: https://en.wikipedia.org/wiki/Serial_port#Conventional_notation
     pub const DEFAULT: Self = Self {
         // Properties and behavior of the UART
-        interrupts: IER::DATA_READY,
+        interrupts: IER::empty(),
         frequency: CLK_FREQUENCY_HZ,
         prescaler_division_factor: None,
         fifo_trigger_level: Some(FifoTriggerLevel::Fourteen),

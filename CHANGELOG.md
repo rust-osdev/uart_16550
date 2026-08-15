@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Breaking:** `Config::default()` now disables **all** interrupts by default
+  (was `IER::DATA_READY`).
+
 ## 0.7.0 - 2026-08-15
 
 - **Breaking:** Changed the return type of `Uart16550::config(&self)` from
