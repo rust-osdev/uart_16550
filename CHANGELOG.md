@@ -2,13 +2,15 @@
 
 ## Unreleased
 
+## 0.7.0 - 2026-08-15
+
 - **Breaking:** Changed the return type of `Uart16550::config(&self)` from
   `(&Config, &B::Address)` to `(&Config, &B)`
 - **Breaking:** `ready_to_send()` (and `send_bytes()` in turn) doesn't check
   `MSR::CTS` anymore by default, as modern hardware tends to leave that pin
-  disconnected. This behavior is configurable through `Config::flow_control`.
-  Additionally, for manual checks, users can check
-  `if device.msr().contains(MSR::CTS) {}`.
+  disconnected. This behavior is configurable through
+  `Config::check_cts_before_sending`. Additionally, for manual checks, users can
+  check `if device.msr().contains(MSR::CTS) {}`.
 
 ## 0.6.0 - 2026-03-28
 
