@@ -285,6 +285,11 @@ mod tty;
 /// [`Uart16550::new_mmio()`] create an instance of a device with the
 /// corresponding backend.
 ///
+/// # Synchronous, Asynchronous, and Interrupt-driven Operation
+///
+/// This is a **synchronous** driver that exposes interrupt configuration,
+/// making it possible to build an asynchronous, interrupt-driven driver on top.
+///
 /// # Hints for Usage on Real Hardware
 ///
 /// Please note that real hardware often behaves quite differently. Just because
