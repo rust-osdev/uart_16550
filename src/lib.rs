@@ -285,6 +285,11 @@ mod tty;
 /// [`Uart16550::new_mmio()`] create an instance of a device with the
 /// corresponding backend.
 ///
+/// # Synchronous, Asynchronous, and Interrupt-driven Operation
+///
+/// This is a **synchronous** driver that exposes interrupt configuration,
+/// making it possible to build an asynchronous, interrupt-driven driver on top.
+///
 /// # Hints for Usage on Real Hardware
 ///
 /// Please note that real hardware often behaves quite differently. Just because
@@ -397,6 +402,8 @@ impl<B: Backend> Uart16550<B> {
     /// Callers must ensure that using this type with the underlying hardware
     /// is done only in a context where such operations are valid and safe
     /// (e.g., you have exclusive device access).
+    ///
+    /// It is recommended to disable interrupts before calling this function.
     ///
     /// Further, the serial config must match the expectations of the receiver
     /// on the other side. Otherwise, garbage will be received.
@@ -677,9 +684,7 @@ impl<B: Backend> Uart16550<B> {
             return Err(ByteSendError::NoCapacity);
         }
 
-        // Software flow control. TODO, what to do with hardware flow control?
-        // Is this something we can and should support?
-        if self.config.flow_control {
+        if self.config.check_cts_before_sending {
             // The CTS line is meaningless when in loopback mode.
             let mcr = self.mcr();
             if !mcr.contains(MCR::LOOP_BACK) {

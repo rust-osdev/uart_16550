@@ -151,12 +151,12 @@ pub struct Config {
     pub extra_stop_bits: bool,
     /// Whether parity bits should be used.
     pub parity: Parity,
-    /// Whether to wait for CTS before sending.
+    /// Whether transmission should honor the remote CTS signal.
     ///
     /// Only activate this if your hardware connects the CTS/RTS flow control
-    /// signals and you wish to make use of them. Keep this setting disabled to
-    /// make sure that the UART works when CTS is left disconnected.
-    pub flow_control: bool,
+    /// signals and you wish to make use of them. Leave it disabled for
+    /// connections that only use TX/RX/GND, where CTS might remain deasserted.
+    pub check_cts_before_sending: bool,
 }
 
 impl Config {
@@ -182,7 +182,7 @@ impl Config {
         data_bits: WordLength::EightBits,
         extra_stop_bits: false,
         parity: Parity::Disabled,
-        flow_control: false,
+        check_cts_before_sending: false,
     };
 }
 
