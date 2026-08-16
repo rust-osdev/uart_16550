@@ -1,7 +1,9 @@
-//! UART discovery through legacy probing and ACPI SPCR.
+//! UART discovery through legacy probing, ACPI SPCR, and PCI enumeration.
 //!
-//! The inventory merges every discovery path so one physical UART is tested
-//! exactly once, however firmware describes it.
+//! Multiple discovery paths cover fixed COM ports as well as UARTs that
+//! firmware tables or PCI configuration space describe. Under QEMU the
+//! `pci-serial` device is such a UART: a 16550 behind a PCI BAR, separate from
+//! the chipset's COM ports, which is what exercises the PCI path there.
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use uart_16550::Uart16550;
@@ -13,6 +15,7 @@ use crate::device::{Address, Discovery, Location};
 use crate::uefi;
 
 mod acpi;
+mod pci;
 
 /// Combines every discovery source into a deduplicated test inventory.
 pub fn discover() -> Inventory {
@@ -20,6 +23,7 @@ pub fn discover() -> Inventory {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     discover_legacy(&mut inventory);
     acpi::discover(&mut inventory);
+    pci::discover(&mut inventory);
     inventory
 }
 

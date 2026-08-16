@@ -9,6 +9,9 @@
 //! Client x86 machines rarely publish the table at all. Strict validation
 //! prevents treating an incompatible layout as a 16550 device; only ACPI 2.0
 //! tables (XSDT) are read, which every UEFI machine provides.
+//!
+//! Without port I/O instructions the module also recovers the PCI I/O window
+//! from the DSDT, see `pci_io_window`.
 
 use core::slice;
 
@@ -182,6 +185,7 @@ fn add_spcr(inventory: &mut Inventory, spcr: SpcrInfo) {
             function: pci.function,
             vendor_id: pci.vendor_id,
             device_id: pci.device_id,
+            attachment: None,
         }),
         None => match address {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
@@ -270,6 +274,132 @@ fn find_table(
         return sdt(address).map(Some);
     }
     Ok(None)
+}
+
+/// FADT offsets of the 32-bit DSDT address and its 64-bit ACPI 2.0 successor.
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+const FADT_DSDT_OFFSET: usize = 40;
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+const FADT_X_DSDT_OFFSET: usize = 140;
+
+/// The CPU-visible MMIO window ACPI declares for the PCI I/O address space.
+///
+/// Without port I/O instructions, a root bridge maps PCI I/O space into
+/// memory. Firmware describes that mapping only in its ACPI resources: the
+/// UEFI root bridge protocol reports the PCI-side range with a zero
+/// translation (QEMU virt: 0x0-0xfff), so the window has to come from the
+/// DSDT.
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct IoWindow {
+    /// First PCI I/O address the window covers.
+    pub pci_min: u64,
+    /// Last PCI I/O address the window covers, inclusive.
+    pub pci_max: u64,
+    /// CPU address at which `pci_min` is mapped; the window is linear.
+    pub cpu_base: u64,
+}
+
+/// Recovers the PCI I/O window translation from the DSDT's resource bytes.
+///
+/// This is not AML interpretation: AML resource templates embed ACPI
+/// address-space descriptors as fixed-format bytes, the same bytes an OS hands
+/// to its PCI host bridge driver. The scan matches DWord/QWord I/O descriptors
+/// byte for byte and accepts only a single, arithmetically consistent,
+/// translated window; anything ambiguous yields no window.
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+pub fn pci_io_window() -> Option<IoWindow> {
+    let fadt = find_table(rsdp()?, b"FACP").ok().flatten()?;
+    let dsdt_address =
+        if fadt.len() >= FADT_X_DSDT_OFFSET + 8 && read_u64(fadt, FADT_X_DSDT_OFFSET) != 0 {
+            read_u64(fadt, FADT_X_DSDT_OFFSET) as usize
+        } else if fadt.len() >= FADT_DSDT_OFFSET + 4 {
+            read_u32(fadt, FADT_DSDT_OFFSET) as usize
+        } else {
+            return None;
+        };
+    let dsdt = sdt(dsdt_address).ok()?;
+
+    let mut found: Option<IoWindow> = None;
+    let mut offset = 0;
+    while offset < dsdt.len() {
+        let (window, size) = match parse_io_descriptor(&dsdt[offset..]) {
+            Some(parsed) => parsed,
+            None => {
+                offset += 1;
+                continue;
+            }
+        };
+        offset += size;
+        match found {
+            None => found = Some(window),
+            Some(previous) if previous == window => {}
+            Some(_) => return None,
+        }
+    }
+    found
+}
+
+/// Decodes one translated DWord/QWord I/O descriptor at the slice's start.
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+fn parse_io_descriptor(bytes: &[u8]) -> Option<(IoWindow, usize)> {
+    // Large resource descriptors start with a tag byte and a 16-bit body
+    // length; the DWord and QWord address-space descriptors share one layout
+    // that differs only in the width of its address fields.
+    /// Tag, body length, and field width of the DWord address-space descriptor.
+    const DWORD_IO: (u8, u16, usize) = (0x87, 23, 4);
+    /// Tag, body length, and field width of the QWord address-space descriptor.
+    const QWORD_IO: (u8, u16, usize) = (0x8a, 43, 8);
+    /// The tag and the two length bytes.
+    const HEADER_LEN: usize = 3;
+    /// Resource type byte after the header; 1 selects an I/O range.
+    const TYPE_IO: u8 = 1;
+    /// The address fields follow the header, the type, and two flag bytes.
+    const FIELDS_OFFSET: usize = 6;
+    /// Field order: granularity, minimum, maximum, translation, length.
+    const FIELD_MIN: usize = 1;
+    const FIELD_MAX: usize = 2;
+    const FIELD_TRANSLATION: usize = 3;
+    const FIELD_LENGTH: usize = 4;
+
+    let (_, body_len, field_size) = [DWORD_IO, QWORD_IO]
+        .into_iter()
+        .find(|(tag, _, _)| bytes.first() == Some(tag))?;
+    let size = HEADER_LEN + usize::from(body_len);
+    if bytes.len() < size
+        || u16::from_le_bytes([bytes[1], bytes[2]]) != body_len
+        || bytes[HEADER_LEN] != TYPE_IO
+    {
+        return None;
+    }
+    let field = |index: usize| {
+        let offset = FIELDS_OFFSET + index * field_size;
+        if field_size == 8 {
+            read_u64(bytes, offset)
+        } else {
+            u64::from(read_u32(bytes, offset))
+        }
+    };
+    let (pci_min, pci_max, translation, length) = (
+        field(FIELD_MIN),
+        field(FIELD_MAX),
+        field(FIELD_TRANSLATION),
+        field(FIELD_LENGTH),
+    );
+
+    // Only an arithmetically consistent, actually translated window is usable.
+    let consistent = pci_min <= pci_max
+        && length == pci_max - pci_min + 1
+        && translation != 0
+        && translation.checked_add(pci_max).is_some();
+    consistent.then_some((
+        IoWindow {
+            pci_min,
+            pci_max,
+            cpu_base: pci_min + translation,
+        },
+        size,
+    ))
 }
 
 /// Borrows mapped firmware ACPI memory after rejecting a null physical address.

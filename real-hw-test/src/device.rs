@@ -35,6 +35,7 @@ pub enum Discovery {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     LegacyProbe,
     AcpiSpcr,
+    PciEnumeration,
 }
 
 impl Display for Discovery {
@@ -45,6 +46,7 @@ impl Display for Discovery {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Self::LegacyProbe => "presence check at a conventional port",
             Self::AcpiSpcr => "ACPI SPCR",
+            Self::PciEnumeration => "PCI enumeration",
         })
     }
 }
@@ -65,6 +67,16 @@ impl Display for Discoveries<'_> {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Where a PCI function sits relative to its root bridge.
+pub enum Attachment {
+    /// Directly on the root bridge's bus: typically a controller integrated on
+    /// the board.
+    OnRootBus,
+    /// Behind a root port or PCI-to-PCI bridge: typically an add-in card.
+    BehindBridge,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// A PCI function's identity from configuration space or the SPCR table.
 pub struct PciFunction {
     pub segment: u32,
@@ -73,6 +85,20 @@ pub struct PciFunction {
     pub function: u8,
     pub vendor_id: u16,
     pub device_id: u16,
+    /// Unknown while only SPCR has described the function.
+    pub attachment: Option<Attachment>,
+}
+
+impl PciFunction {
+    /// Names devices whose IDs identify them beyond doubt.
+    fn known_name(&self) -> Option<&'static str> {
+        match (self.vendor_id, self.device_id) {
+            (0x1b36, 0x0002) => Some("QEMU pci-serial"),
+            (0x1b36, 0x0003) => Some("QEMU pci-serial-2x"),
+            (0x1b36, 0x0004) => Some("QEMU pci-serial-4x"),
+            _ => None,
+        }
+    }
 }
 
 impl Display for PciFunction {
@@ -81,7 +107,15 @@ impl Display for PciFunction {
             f,
             "PCI {:04x}:{:02x}:{:02x}.{} {:04x}:{:04x}",
             self.segment, self.bus, self.device, self.function, self.vendor_id, self.device_id
-        )
+        )?;
+        if let Some(name) = self.known_name() {
+            write!(f, " ({name})")?;
+        }
+        match self.attachment {
+            Some(Attachment::OnRootBus) => f.write_str(", on the root bus"),
+            Some(Attachment::BehindBridge) => f.write_str(", behind a bridge"),
+            None => Ok(()),
+        }
     }
 }
 
@@ -97,10 +131,17 @@ pub enum Location {
 }
 
 impl Location {
-    /// Prefers PCI evidence: SPCR can identify a console as a PCI function.
+    /// Prefers PCI evidence: SPCR and enumeration can describe one function,
+    /// and only enumeration knows how it is attached.
     fn merge(&mut self, incoming: Location) {
-        if matches!(incoming, Self::Pci(_)) && !matches!(self, Self::Pci(_)) {
-            *self = incoming;
+        match (self, incoming) {
+            (Self::Pci(current), Self::Pci(incoming)) => {
+                if current.attachment.is_none() {
+                    current.attachment = incoming.attachment;
+                }
+            }
+            (current, Self::Pci(_)) => *current = incoming,
+            _ => {}
         }
     }
 }
