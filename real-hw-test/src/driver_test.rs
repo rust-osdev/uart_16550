@@ -23,6 +23,7 @@ pub enum Driver {
 pub struct Result {
     pub passed: bool,
     pub connection_warning: bool,
+    pub interactive_skipped: bool,
     pub driver: Option<Driver>,
 }
 
@@ -136,6 +137,7 @@ pub fn run(candidates: &[Candidate], preflight: &[preflight::Result]) -> Vec<Res
                 Result {
                     passed: false,
                     connection_warning: false,
+                    interactive_skipped: false,
                     driver: None,
                 }
             }
@@ -201,6 +203,7 @@ fn run_one(candidate: &Candidate) -> Result {
     Result {
         passed: true,
         connection_warning,
+        interactive_skipped: false,
         driver: Some(driver),
     }
 }
@@ -261,6 +264,7 @@ fn fail(stage: &str, error: &str) -> Result {
     Result {
         passed: false,
         connection_warning: false,
+        interactive_skipped: false,
         driver: None,
     }
 }
@@ -270,6 +274,7 @@ fn failed_driver(driver: Driver) -> Result {
     Result {
         passed: false,
         connection_warning: false,
+        interactive_skipped: false,
         driver: Some(driver),
     }
 }
