@@ -136,7 +136,7 @@ dependencies = [
 
 [[package]]
 name = "uart_16550"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "assert2",
  "bitflags",
