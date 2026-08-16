@@ -1,0 +1,10 @@
+[package]
+name = "uart-16550-real-hw-test"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+uart_16550 = { path = ".." }
+uefi = { version = "0.38.0", features = ["global_allocator", "panic_handler"] }
+
