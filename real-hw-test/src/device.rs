@@ -4,10 +4,14 @@ use core::fmt::{self, Display, Formatter};
 use uart_16550::spec::CLK_FREQUENCY_HZ;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-/// A byte-addressable 16550 register block reached through port I/O.
+/// A byte-addressable 16550 register block reached through PIO or MMIO.
 pub enum Address {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     Port(u16),
+    Mmio {
+        base: usize,
+        stride: u8,
+    },
 }
 
 impl Display for Address {
@@ -16,6 +20,9 @@ impl Display for Address {
         match self {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Self::Port(port) => write!(f, "PIO 0x{port:04x}"),
+            Self::Mmio { base, stride } => {
+                write!(f, "MMIO 0x{base:x}, stride {stride}")
+            }
         }
     }
 }
@@ -27,6 +34,7 @@ pub enum Source {
     RequiredCom1,
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     LegacyProbe,
+    AcpiSpcr,
 }
 
 #[derive(Debug)]

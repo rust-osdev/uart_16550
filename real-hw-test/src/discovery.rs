@@ -1,7 +1,7 @@
-//! UART discovery through legacy probing.
+//! UART discovery through legacy probing and ACPI SPCR.
 //!
 //! The inventory merges every discovery path so one physical UART is tested
-//! exactly once.
+//! exactly once, however firmware describes it.
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use uart_16550::Uart16550;
@@ -12,11 +12,14 @@ use crate::device::{Address, Source};
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use crate::uefi;
 
+mod acpi;
+
 /// Combines every discovery source into a deduplicated test inventory.
 pub fn discover() -> Inventory {
     let mut inventory = Inventory::default();
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     discover_legacy(&mut inventory);
+    acpi::discover(&mut inventory);
     inventory
 }
 
