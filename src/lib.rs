@@ -397,13 +397,29 @@ impl<B: Backend> Uart16550<B> {
     /// the device works. Further, a call to [`Self::check_connected`] helps to
     /// detect if a remote is connected.
     ///
+    /// # Interrupts
+    ///
+    /// As one of its first steps, this function disables all device interrupts.
+    /// The interrupts selected in the [`Config`] are enabled again only at the
+    /// very end of the initialization sequence.
+    ///
+    /// An interrupt may still become pending after the configured interrupts
+    /// have been enabled but before this function returns, for example because
+    /// data arrives asynchronously.
+    ///
+    /// [`IER::THR_EMPTY`] is a special case. If enabled, it will immediately
+    /// trigger an interrupt because the transmitter is guaranteed to be empty
+    /// when the configured interrupts are enabled at the end of initialization.
+    ///
+    /// **Recommendation:** Therefore, when using the device in an
+    /// interrupt-driven setup, it is safest to call this function from an
+    /// interrupt-free section.
+    ///
     /// # Caution
     ///
     /// Callers must ensure that using this type with the underlying hardware
     /// is done only in a context where such operations are valid and safe
     /// (e.g., you have exclusive device access).
-    ///
-    /// It is recommended to disable interrupts before calling this function.
     ///
     /// Further, the serial config must match the expectations of the receiver
     /// on the other side. Otherwise, garbage will be received.
@@ -496,13 +512,6 @@ impl<B: Backend> Uart16550<B> {
             self.backend.write(offsets::MCR as u8, mcr.bits());
         }
 
-        // Set interrupts.
-        // SAFETY: We operate on valid register addresses.
-        unsafe {
-            self.backend
-                .write(offsets::IER as u8, self.config.interrupts.bits());
-        }
-
         // In case there is anything in THR, THR's FIFO or TSR (for
         // example because the device was already initialized by another
         // driver), we wait for the data to be drained. This way, we can ensure
@@ -522,6 +531,22 @@ impl<B: Backend> Uart16550<B> {
             } else {
                 hint::spin_loop()
             }
+        }
+
+        // Bring status bits into a clean state.
+        {
+            // Clear receiver line-status deltas / interrupt indicators.
+            let _ = self.lsr();
+
+            // Clear modem-status deltas.
+            let _ = self.msr();
+        }
+
+        // Set interrupts as the last step.
+        // SAFETY: We operate on valid register addresses.
+        unsafe {
+            self.backend
+                .write(offsets::IER as u8, self.config.interrupts.bits());
         }
         Ok(())
     }

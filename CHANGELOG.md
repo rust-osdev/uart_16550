@@ -4,6 +4,8 @@
 
 - **Breaking:** `Config::default()` now disables **all** interrupts by default
   (was `IER::DATA_READY`).
+- Made `Uart16550::init()` enable configured interrupts only at the end. Also
+  documented when interrupts can still become pending.
 
 ## 0.7.0 - 2026-08-15
 
