@@ -6,4 +6,4 @@ publish = false
 
 [dependencies]
 uart_16550 = { path = ".." }
-uefi = { version = "0.40.0", features = ["global_allocator", "panic_handler"] }
+uefi = { version = "0.40.0", features = ["alloc", "global_allocator", "panic_handler"] }
