@@ -58,6 +58,7 @@ fn main() -> Status {
 
     if !firmware::disconnect_serial_controllers() {
         uefi::println!("FAIL: firmware serial ownership was not released");
+        logging::report_location();
         return Status::DEVICE_ERROR;
     }
 
@@ -89,13 +90,21 @@ fn main() -> Status {
         .filter(|result| result.interactive_skipped)
         .count();
     uefi::println!(
-        "\nFinal summary: {passed}/{} passed, {warnings} connection warning(s), {skipped} interactive skip(s), {initialized} initialized.",
-        drivers.len()
+        "\nFinal summary: {}/{} passed, {} connection \
+         warning(s), {} interactive skip(s), {} \
+         initialized.",
+        passed,
+        drivers.len(),
+        warnings,
+        skipped,
+        initialized,
     );
     let statuses = drivers.iter().map(driver_test::Result::status);
     for (index, (candidate, status)) in inventory.candidates().iter().zip(statuses).enumerate() {
         uefi::println!("  [{index}] {status}: {}", candidate.address);
     }
+
+    logging::report_location();
     uefi::println!("Press Enter to return to firmware.");
     firmware::wait_for_enter();
     if passed == drivers.len() {
