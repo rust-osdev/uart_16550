@@ -15,7 +15,7 @@ all: artifact
 
 artifact: $(ARTIFACT)
 
-$(ARTIFACT):
+$(ARTIFACT): FORCE
 	$(BUILD) --target $(TARGET) --release
 	mkdir -p $(dir $(ARTIFACT))
 	cp $(BINARY) $(ARTIFACT)
@@ -35,3 +35,6 @@ qemu-tcg:
 clean:
 	$(CARGO) clean --target-dir $(TARGET_DIR)
 	rm -rf build
+
+.PHONY: FORCE
+FORCE:
