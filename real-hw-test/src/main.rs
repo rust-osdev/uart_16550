@@ -10,9 +10,18 @@
 extern crate alloc;
 extern crate uefi as uefi_rs;
 
-/// Routes every UEFI diagnostic through one crate-local indirection point.
+/// Routes existing UEFI diagnostics through the fail-closed test logger.
 mod uefi {
+    pub use crate::test_println as println;
     pub use uefi_rs::*;
+}
+
+/// Mirrors UEFI diagnostics to the screen and the test-run log file.
+#[macro_export]
+macro_rules! test_println {
+    ($($arg:tt)*) => {
+        $crate::logging::println(core::format_args!($($arg)*))
+    };
 }
 
 mod device;
@@ -20,6 +29,7 @@ mod discovery;
 mod driver_test;
 mod firmware;
 mod interactive;
+mod logging;
 
 use uefi::prelude::*;
 
@@ -35,6 +45,10 @@ compile_error!("unsupported architecture; supported: x86_64, aarch64");
 #[entry]
 fn main() -> Status {
     uefi::helpers::init().expect("UEFI helpers should initialize");
+    if let Err(error) = logging::init() {
+        uefi_rs::println!("CRITICAL: cannot create test log: {error}");
+        return Status::DEVICE_ERROR;
+    }
     uefi::println!("uart_16550 real-hardware test ({ARCH_NAME})");
     firmware::disable_watchdog();
 
