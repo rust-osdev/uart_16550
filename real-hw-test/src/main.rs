@@ -19,6 +19,7 @@ mod device;
 mod discovery;
 mod driver_test;
 mod firmware;
+mod interactive;
 
 use uefi::prelude::*;
 
@@ -52,7 +53,8 @@ fn main() -> Status {
         );
     }
 
-    let drivers = driver_test::run(inventory.candidates());
+    let mut drivers = driver_test::run(inventory.candidates());
+    interactive::run(inventory.candidates(), &mut drivers);
     let passed = drivers.iter().filter(|result| result.passed).count();
     let warnings = drivers
         .iter()
@@ -62,10 +64,24 @@ fn main() -> Status {
         .iter()
         .filter(|result| result.driver.is_some())
         .count();
+    let skipped = drivers
+        .iter()
+        .filter(|result| result.interactive_skipped)
+        .count();
     uefi::println!(
-        "\nAutomatic summary: {passed}/{} passed, {warnings} connection warning(s), {initialized} initialized.",
+        "\nFinal summary: {passed}/{} passed, {warnings} connection warning(s), {skipped} interactive skip(s), {initialized} initialized.",
         drivers.len()
     );
+    for (index, (candidate, result)) in inventory.candidates().iter().zip(&drivers).enumerate() {
+        let status = if !result.passed {
+            "FAIL"
+        } else if result.connection_warning || result.interactive_skipped {
+            "WARN"
+        } else {
+            "PASS"
+        };
+        uefi::println!("  [{index}] {status}: {}", candidate.address);
+    }
     uefi::println!("Press Enter to return to firmware.");
     firmware::wait_for_enter();
     if passed == drivers.len() {

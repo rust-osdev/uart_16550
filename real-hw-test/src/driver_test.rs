@@ -26,6 +26,7 @@ pub enum Driver {
 pub struct Result {
     pub passed: bool,
     pub connection_warning: bool,
+    pub interactive_skipped: bool,
     pub driver: Option<Driver>,
 }
 
@@ -123,6 +124,14 @@ impl Driver {
             Self::Mmio(uart) => uart.send_bytes_exact(bytes),
         }
     }
+    /// Polls one received byte so interactive checks never block keyboard input.
+    pub fn try_receive_byte(&mut self) -> core::result::Result<u8, uart_16550::ByteReceiveError> {
+        match self {
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+            Self::Port(uart) => uart.try_receive_byte(),
+            Self::Mmio(uart) => uart.try_receive_byte(),
+        }
+    }
 }
 
 /// Exercises every candidate through the public driver API.
@@ -188,6 +197,7 @@ fn run_one(candidate: &Candidate) -> Result {
     Result {
         passed: true,
         connection_warning,
+        interactive_skipped: false,
         driver: Some(driver),
     }
 }
@@ -248,6 +258,7 @@ fn fail(stage: &str, error: &str) -> Result {
     Result {
         passed: false,
         connection_warning: false,
+        interactive_skipped: false,
         driver: None,
     }
 }
@@ -257,6 +268,7 @@ fn failed_driver(driver: Driver) -> Result {
     Result {
         passed: false,
         connection_warning: false,
+        interactive_skipped: false,
         driver: Some(driver),
     }
 }
