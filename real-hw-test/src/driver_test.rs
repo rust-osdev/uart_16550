@@ -5,6 +5,7 @@
 
 use alloc::vec::Vec;
 use core::ptr::NonNull;
+use core::time::Duration;
 
 use uart_16550::backend::{MmioBackend, PioBackend};
 use uart_16550::spec::registers::{LSR, MCR};
@@ -13,6 +14,9 @@ use uart_16550::{BaudRate, Config, ConfigRegisterDump, Uart16550};
 use crate::device::{Address, Candidate};
 use crate::preflight;
 use crate::uefi;
+use uefi::boot;
+
+const SEND_TIMEOUT_MS: u64 = 1_000;
 
 /// The public-driver backend selected for a PIO or MMIO candidate.
 pub enum Driver {
@@ -113,6 +117,7 @@ impl Driver {
             Self::Mmio(uart) => uart.send_bytes_exact(bytes),
         }
     }
+
     /// Polls one received byte so interactive checks never block keyboard input.
     pub fn try_receive_byte(&mut self) -> core::result::Result<u8, uart_16550::ByteReceiveError> {
         match self {
@@ -160,7 +165,7 @@ fn run_one(candidate: &Candidate) -> Result {
 
     if let Err(error) = driver.init(config.clone()) {
         uefi::println!("  FAIL: init: {error:?}");
-        return failed_driver(driver);
+        return failed_driver(driver, false);
     }
     uefi::println!("  PASS: init");
 
@@ -168,20 +173,20 @@ fn run_one(candidate: &Candidate) -> Result {
     print_dump("after init", &dump);
     if !valid_dump(&dump, &config) {
         uefi::println!("  FAIL: initialized register values do not match Config");
-        return failed_driver(driver);
+        return failed_driver(driver, false);
     }
     uefi::println!("  PASS: initialized register values");
 
     if let Err(error) = driver.test_loopback() {
         uefi::println!("  FAIL: test_loopback: {error:?}");
-        return failed_driver(driver);
+        return failed_driver(driver, false);
     }
     uefi::println!("  PASS: test_loopback");
     let dump = driver.dump();
     print_dump("after crate loopback", &dump);
     if !valid_dump(&dump, &config) {
         uefi::println!("  FAIL: loopback did not restore configured registers");
-        return failed_driver(driver);
+        return failed_driver(driver, false);
     }
 
     let connection_warning = match driver.check_connected() {
@@ -197,7 +202,8 @@ fn run_one(candidate: &Candidate) -> Result {
 
     if let Err(error) = exercise_send_apis(&mut driver) {
         uefi::println!("  FAIL: send API checks: {error}");
-        return failed_driver(driver);
+        print_dump("after send API failure", &driver.dump());
+        return failed_driver(driver, connection_warning);
     }
     uefi::println!("  PASS: try_send_byte/send_bytes/send_bytes_exact");
 
@@ -216,14 +222,40 @@ fn exercise_send_apis(driver: &mut Driver) -> core::result::Result<(), &'static 
         .try_send_byte(b'[')
         .map_err(|_| "try_send_byte failed")?;
 
-    let chunk = b"send_bytes] ";
-    let written = driver.send_bytes(chunk);
-    if written == 0 {
-        return Err("send_bytes wrote nothing");
-    }
-    driver.send_bytes_exact(&chunk[written..]);
-    driver.send_bytes_exact(b"[uart_16550] uart transmit test\r\n");
+    send_all_with_timeout(driver, b"send_bytes")?;
+    wait_until_ready_to_send(driver)?;
+    // Call the convenience API only while THR is empty to keep this test bounded.
+    driver.send_bytes_exact(b"]");
+    send_all_with_timeout(driver, b" [uart_16550] uart transmit test\r\n")?;
     Ok(())
+}
+
+/// Retries the nonblocking send API long enough for a physical UART to drain.
+fn send_all_with_timeout(
+    driver: &mut Driver,
+    bytes: &[u8],
+) -> core::result::Result<(), &'static str> {
+    let mut remaining = bytes;
+    for _ in 0..SEND_TIMEOUT_MS {
+        let written = driver.send_bytes(remaining);
+        remaining = &remaining[written..];
+        if remaining.is_empty() {
+            return Ok(());
+        }
+        boot::stall(Duration::from_millis(1));
+    }
+    Err("send_bytes timed out")
+}
+
+/// Bounds the prerequisite for `send_bytes_exact`, which has no timeout API.
+fn wait_until_ready_to_send(driver: &mut Driver) -> core::result::Result<(), &'static str> {
+    for _ in 0..SEND_TIMEOUT_MS {
+        if driver.ready_to_send().is_ok() {
+            return Ok(());
+        }
+        boot::stall(Duration::from_millis(1));
+    }
+    Err("transmitter did not become ready")
 }
 
 /// Verifies the dump reflects the requested 9600 8N1 polling configuration.
@@ -271,10 +303,10 @@ fn fail(stage: &str, error: &str) -> Result {
 }
 
 /// Retains a constructed driver after failure without allowing interactive use.
-fn failed_driver(driver: Driver) -> Result {
+fn failed_driver(driver: Driver, connection_warning: bool) -> Result {
     Result {
         passed: false,
-        connection_warning: false,
+        connection_warning,
         interactive_skipped: false,
         driver: Some(driver),
     }
