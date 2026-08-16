@@ -168,6 +168,28 @@ make qemu-tcg
 arguments, or relocate the temporary directory-backed EFI system partition.
 QEMU data stays below the repository's ignored `target/real-hw-test/` tree.
 
+### Headless CI smoke test
+
+`make ci-qemu` boots the same artifact as `make artifact` headlessly with QEMU
+TCG; the application contains no CI-specific code. A host-side script answers
+the operator prompts and skips the interactive phase through QEMU-monitor
+`sendkey`, then judges the run by the log the application persists on its boot
+volume and by the serial captures. It requires both legacy COM1 and the QEMU
+PCI serial controller to be discovered and every deterministic raw and
+`uart_16550` check to pass.
+
+The harness needs `socat`, `mtools`, and `dosfstools` next to QEMU and OVMF;
+the Nix development shell provides all of them.
+
+```console
+make ci-qemu
+```
+
+This smoke test is useful for debugging the test application and preventing its
+automatic QEMU paths from regressing. It does not replace the manual test of a
+real cable, reconnect behavior, firmware-specific ownership handoff, or
+physical hardware.
+
 ## Reading the test output
 
 The UEFI monitor is authoritative. Before takeover, `UEFI SERIAL BASELINE`

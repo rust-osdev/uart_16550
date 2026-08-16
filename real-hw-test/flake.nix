@@ -18,8 +18,11 @@
         {
           default = pkgs.mkShell {
             packages = with pkgs; [
+              dosfstools
+              mtools
               qemu_kvm
               rustup
+              socat
               util-linux
             ];
             env.OVMF = "${pkgs.OVMF.fd}/FV/OVMF.fd";
