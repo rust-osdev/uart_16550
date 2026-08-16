@@ -35,6 +35,12 @@ pub enum Source {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     LegacyProbe,
     AcpiSpcr,
+    Pci {
+        segment: u32,
+        bus: u8,
+        device: u8,
+        function: u8,
+    },
 }
 
 #[derive(Debug)]
