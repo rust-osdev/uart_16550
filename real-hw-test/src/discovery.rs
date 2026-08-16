@@ -1,14 +1,51 @@
-//! UART discovery into one deduplicated candidate inventory.
+//! UART discovery through legacy probing.
 //!
-//! Later commits add discovery paths; the inventory merges their findings so
-//! one physical UART is tested exactly once.
+//! The inventory merges every discovery path so one physical UART is tested
+//! exactly once.
 
-use crate::device::{Address, Inventory, Source};
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+use uart_16550::Uart16550;
+
+use crate::device::Inventory;
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+use crate::device::{Address, Source};
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+use crate::uefi;
 
 /// Combines every discovery source into a deduplicated test inventory.
 pub fn discover() -> Inventory {
     let mut inventory = Inventory::default();
-    // COM1 is required wiring on the targeted machines, so it is always tested.
-    inventory.add(Address::Port(0x3f8), None, Source::RequiredCom1);
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    discover_legacy(&mut inventory);
     inventory
+}
+
+/// Probes conventional COM addresses while always retaining COM1 as a baseline.
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+fn discover_legacy(inventory: &mut Inventory) {
+    const PORTS: [u16; 4] = [0x3f8, 0x2f8, 0x3e8, 0x2e8];
+
+    uefi::println!("\nLegacy UART probes:");
+    for (index, port) in PORTS.into_iter().enumerate() {
+        let address = Address::Port(port);
+        let present = uart_present(port);
+        uefi::println!(
+            "  {address}: presence check {}",
+            if present { "PASS" } else { "FAIL" }
+        );
+
+        if index == 0 {
+            inventory.add(address, None, Source::RequiredCom1);
+        } else if present {
+            inventory.add(address, None, Source::LegacyProbe);
+        }
+    }
+}
+
+/// Reading an absent port yields junk, so only a responding scratch register
+/// qualifies an address; the crate's check is the one `init()` runs first.
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+fn uart_present(port: u16) -> bool {
+    // SAFETY: firmware serial consumers were disconnected before discovery.
+    unsafe { Uart16550::new_port(port) }.is_ok_and(|mut uart| uart.check_present())
 }

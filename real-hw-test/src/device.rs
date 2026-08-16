@@ -25,6 +25,8 @@ impl Display for Address {
 pub enum Source {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     RequiredCom1,
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    LegacyProbe,
 }
 
 #[derive(Debug)]
