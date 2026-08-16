@@ -4,10 +4,14 @@ use core::fmt::{self, Display, Formatter};
 use uart_16550::spec::CLK_FREQUENCY_HZ;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-/// A byte-addressable 16550 register block reached through port I/O.
+/// A byte-addressable 16550 register block reached through PIO or MMIO.
 pub enum Address {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     Port(u16),
+    Mmio {
+        base: usize,
+        stride: u8,
+    },
 }
 
 impl Display for Address {
@@ -16,6 +20,9 @@ impl Display for Address {
         match self {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Self::Port(port) => write!(f, "PIO 0x{port:04x}"),
+            Self::Mmio { base, stride } => {
+                write!(f, "MMIO 0x{base:x}, stride {stride}")
+            }
         }
     }
 }
@@ -27,6 +34,7 @@ pub enum Discovery {
     RequiredCom1,
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     LegacyProbe,
+    AcpiSpcr,
 }
 
 impl Display for Discovery {
@@ -36,6 +44,7 @@ impl Display for Discovery {
             Self::RequiredCom1 => "required COM1",
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Self::LegacyProbe => "presence check at a conventional port",
+            Self::AcpiSpcr => "ACPI SPCR",
         })
     }
 }
@@ -56,11 +65,44 @@ impl Display for Discoveries<'_> {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// A PCI function's identity from configuration space or the SPCR table.
+pub struct PciFunction {
+    pub segment: u32,
+    pub bus: u8,
+    pub device: u8,
+    pub function: u8,
+    pub vendor_id: u16,
+    pub device_id: u16,
+}
+
+impl Display for PciFunction {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "PCI {:04x}:{:02x}:{:02x}.{} {:04x}:{:04x}",
+            self.segment, self.bus, self.device, self.function, self.vendor_id, self.device_id
+        )
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// Where a candidate physically lives; exactly one applies per UART.
 pub enum Location {
     /// A conventional I/O port: the Super I/O or LPC UART on the board.
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     LegacyPort,
+    /// A memory-mapped UART that firmware describes without a PCI identity.
+    Platform,
+    Pci(PciFunction),
+}
+
+impl Location {
+    /// Prefers PCI evidence: SPCR can identify a console as a PCI function.
+    fn merge(&mut self, incoming: Location) {
+        if matches!(incoming, Self::Pci(_)) && !matches!(self, Self::Pci(_)) {
+            *self = incoming;
+        }
+    }
 }
 
 impl Display for Location {
@@ -68,6 +110,8 @@ impl Display for Location {
         match self {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Self::LegacyPort => f.write_str("built-in legacy port"),
+            Self::Platform => f.write_str("built-in platform UART"),
+            Self::Pci(function) => function.fmt(f),
         }
     }
 }
@@ -112,6 +156,7 @@ impl Inventory {
             if !candidate.discoveries.contains(&discovery) {
                 candidate.discoveries.push(discovery);
             }
+            candidate.location.merge(location);
             if let Some(clock_hz) = clock_hz.filter(|clock| *clock != 0) {
                 candidate.clock_hz = clock_hz;
             }
