@@ -18,10 +18,12 @@
         {
           default = pkgs.mkShell {
             packages = with pkgs; [
+              fzf
               # The full QEMU: qemu_kvm carries only the host architecture's
               # system emulator, but the aarch64 test needs qemu-system-aarch64.
               qemu
               rustup
+              util-linux
             ];
             env.OVMF = "${pkgs.OVMF.fd}/FV/OVMF.fd";
             env.AAVMF_CODE = "${pkgs.qemu}/share/qemu/edk2-aarch64-code.fd";

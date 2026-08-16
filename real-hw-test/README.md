@@ -14,7 +14,8 @@ written directly to a UART are deliberately short, recognizable test payloads.
 ## TL;DR
 
 1. Run `make artifact` (or `make artifacts` for every architecture), then
-   deploy the built images to a mounted GPT/FAT32 EFI partition.
+   deploy the built images with `make install`, which lets you pick the mounted
+   GPT/FAT32 EFI partition interactively.
 2. Boot with a monitor and USB keyboard. Leave the monitor connected: it is the
    authoritative diagnostic channel after firmware serial ownership is released.
 3. Confirm the firmware baseline, configure the remote to 9600 8N1, and press
@@ -119,6 +120,41 @@ Run all static build checks with:
 ```console
 make check
 ```
+
+## Install on USB media
+
+Prepare and mount an EFI partition yourself. The install target intentionally
+does not partition, format, mount, or unmount devices. It verifies that the
+mount is backed by a partition on a GPT disk and that `lsblk` identifies the
+filesystem as FAT32 before copying anything.
+
+With the media mounted, run:
+
+```console
+make install
+```
+
+This opens an interactive picker listing every mounted FAT32 partition on a GPT
+disk that sits on removable or USB-attached media, with size, label, bus, and
+model. Built-in disks are never listed: they carry the host's own ESP, where
+overwriting `EFI/BOOT` breaks the host's boot path.
+
+Pass the mount point directly to skip the picker. That is also the way to reach
+media the picker does not list, and scripted runs without a terminal require
+it:
+
+```console
+lsblk -o NAME,SIZE,TYPE,FSTYPE,FSVER,PTTYPE,MOUNTPOINTS
+make install USB_MOUNT=/run/media/<user>/<name>/EFI
+```
+
+Every artifact present in `build/` is copied to its removable-media path, so
+one stick can boot every architecture built beforehand (for example with
+`make artifacts`): `EFI/BOOT/BOOTX64.EFI`, `EFI/BOOT/BOOTAA64.EFI`, and so on.
+If the disk is not GPT, the
+filesystem is not FAT32, the path is not an exact mount point, or the mount is
+not writable, installation stops with a diagnostic. Unmount the partition
+cleanly before removing it.
 
 ## Run under QEMU
 

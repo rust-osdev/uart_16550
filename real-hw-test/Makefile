@@ -25,7 +25,7 @@ ARTIFACT := build/$(BOOT_NAME)
 BUILD := CARGO_TARGET_DIR=$(TARGET_DIR) $(CARGO) build --locked
 CLIPPY := CARGO_TARGET_DIR=$(TARGET_DIR) $(CARGO) clippy --locked
 
-.PHONY: all artifact artifacts check qemu qemu-tcg clean
+.PHONY: all artifact artifacts check qemu qemu-tcg install clean
 
 all: artifact
 
@@ -43,6 +43,7 @@ check:
 	$(CARGO) fmt --check
 	$(CLIPPY) --target x86_64-unknown-uefi --release -- -D warnings
 	$(CLIPPY) --target aarch64-unknown-uefi --release -- -D warnings
+	bash -n scripts/*.sh
 	$(MAKE) artifact
 
 qemu: artifact
@@ -51,6 +52,11 @@ qemu: artifact
 
 qemu-tcg:
 	$(MAKE) qemu QEMU_ACCEL=tcg
+
+# Deploys every built architecture; 'make artifacts' first covers them all.
+# Without USB_MOUNT, the media is picked interactively.
+install: artifact
+	USB_MOUNT="$(USB_MOUNT)" ./scripts/install-usb.sh
 
 clean:
 	$(CARGO) clean --target-dir $(TARGET_DIR)
