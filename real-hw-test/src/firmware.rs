@@ -11,6 +11,15 @@ use uefi::proto::console::serial::Serial;
 use uefi::proto::console::text::Key;
 use uefi::{Handle, Status, system};
 
+/// Disables UEFI's image watchdog so manual prompts do not reset the machine.
+pub fn disable_watchdog() {
+    // Manual serial phases may run beyond UEFI's default five-minute limit.
+    match boot::set_watchdog_timer(0, 0, None) {
+        Ok(()) => uefi::println!("Firmware watchdog disabled for manual testing."),
+        Err(error) => uefi::println!("WARN: could not disable firmware watchdog: {error:?}"),
+    }
+}
+
 /// Collects Serial I/O handles, treating an absent protocol as an empty list.
 fn serial_handles() -> Result<Vec<Handle>, Status> {
     match boot::locate_handle_buffer(SearchType::from_proto::<Serial>()) {

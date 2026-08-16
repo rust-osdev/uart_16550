@@ -24,6 +24,7 @@ use uefi::prelude::*;
 fn main() -> Status {
     uefi::helpers::init().expect("UEFI helpers should initialize");
     uefi::println!("uart_16550 real-hardware test");
+    firmware::disable_watchdog();
 
     if !firmware::disconnect_serial_controllers() {
         uefi::println!("FAIL: firmware serial ownership was not released");
