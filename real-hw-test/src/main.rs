@@ -39,6 +39,7 @@ compile_error!("unsupported architecture; supported: x86_64, aarch64");
 fn main() -> Status {
     uefi::helpers::init().expect("UEFI helpers should initialize");
     uefi::println!("uart_16550 real-hardware test ({ARCH_NAME})");
+    firmware::disable_watchdog();
 
     if !firmware::disconnect_serial_controllers() {
         uefi::println!("FAIL: firmware serial ownership was not released");
