@@ -11,6 +11,7 @@ extern crate alloc;
 
 mod device;
 mod discovery;
+mod driver_test;
 mod firmware;
 mod preflight;
 mod raw_uart;
@@ -40,14 +41,23 @@ fn main() -> Status {
     }
 
     let preflight = preflight::run(inventory.candidates());
-    let passed = preflight.iter().filter(|result| result.passed).count();
+    let drivers = driver_test::run(inventory.candidates(), &preflight);
+    let passed = drivers.iter().filter(|result| result.passed).count();
+    let warnings = drivers
+        .iter()
+        .filter(|result| result.connection_warning)
+        .count();
+    let initialized = drivers
+        .iter()
+        .filter(|result| result.driver.is_some())
+        .count();
     uefi::println!(
-        "\nBarebones summary: {passed}/{} candidate(s) passed.",
-        preflight.len()
+        "\nAutomatic summary: {passed}/{} passed, {warnings} connection warning(s), {initialized} initialized.",
+        drivers.len()
     );
     uefi::println!("Press Enter to return to firmware.");
     firmware::wait_for_enter();
-    if passed == preflight.len() {
+    if passed == drivers.len() {
         Status::SUCCESS
     } else {
         Status::DEVICE_ERROR
