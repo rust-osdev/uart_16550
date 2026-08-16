@@ -1,0 +1,45 @@
+name: UEFI real-hardware test smoke test
+
+on: [pull_request, merge_group]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  qemu:
+    name: Headless QEMU TCG
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-uefi
+      - name: Install QEMU, OVMF, and harness tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dosfstools mtools ovmf qemu-system-x86 socat
+      - name: Run deterministic UEFI checks
+        working-directory: real-hw-test
+        run: |
+          # The ovmf package layout varies across Ubuntu releases: combined vs
+          # split images, 4M variants, and symlinks. Prefer a combined image.
+          OVMF=""
+          for candidate in /usr/share/ovmf/OVMF.fd /usr/share/OVMF/OVMF.fd; do
+            if [[ -r "$candidate" ]]; then
+              OVMF=$candidate
+              break
+            fi
+          done
+          if [[ -z "$OVMF" ]]; then
+            OVMF=$(find -L /usr/share/OVMF /usr/share/ovmf -maxdepth 1 \
+              -name 'OVMF_CODE*.fd' -readable 2>/dev/null | sort | head -n1)
+          fi
+          if [[ -z "$OVMF" ]]; then
+            echo "error: the ovmf package did not install a usable image:" >&2
+            ls -la /usr/share/OVMF /usr/share/ovmf >&2 || true
+            exit 1
+          fi
+          make ci-qemu OVMF="$OVMF"
