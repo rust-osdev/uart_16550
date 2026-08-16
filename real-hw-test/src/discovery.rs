@@ -5,6 +5,7 @@
 
 use crate::device::{Address, Inventory, Source};
 use crate::raw_uart::RawUart;
+use crate::uefi;
 
 mod acpi;
 mod pci;

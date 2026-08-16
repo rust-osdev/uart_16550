@@ -7,6 +7,7 @@ use core::arch::asm;
 use core::hint;
 
 use crate::device::Address;
+use crate::uefi;
 
 const DATA: u8 = 0;
 const IER: u8 = 1;

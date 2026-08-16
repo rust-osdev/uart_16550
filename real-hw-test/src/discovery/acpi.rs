@@ -9,6 +9,7 @@ use uefi::system;
 use uefi::table::cfg::ConfigTableEntry;
 
 use crate::device::{Address, Inventory, Source};
+use crate::uefi;
 
 const SDT_HEADER_LEN: usize = 36;
 const MAX_TABLE_LEN: usize = 1024 * 1024;

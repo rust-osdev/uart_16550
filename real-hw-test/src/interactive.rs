@@ -11,6 +11,7 @@ use uefi::system;
 
 use crate::device::Candidate;
 use crate::driver_test::{self, Driver};
+use crate::uefi;
 
 /// Offers interactive checks only for UARTs that passed automatic driver tests.
 pub fn run(candidates: &[Candidate], results: &mut [driver_test::Result]) {

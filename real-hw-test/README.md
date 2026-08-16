@@ -6,8 +6,10 @@ integration test: automatic register and loopback checks run first, followed by
 an interactive serial menu.
 
 All diagnostics use UEFI Simple Text Output and are intended to stay visible on
-the test machine's monitor. Bytes written directly to a UART are deliberately
-short, recognizable test payloads.
+the test machine's monitor. They are also persisted, line by line, on the boot
+volume as `/uart_16550_test_logs/uart_16550_YYYY-MM-DD_HH-MM-SS.txt`. A log
+creation, write, or flush failure is critical and aborts the test. Bytes
+written directly to a UART are deliberately short, recognizable test payloads.
 
 ## TL;DR
 

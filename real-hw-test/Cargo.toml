@@ -5,6 +5,6 @@ edition = "2024"
 publish = false
 
 [dependencies]
+jiff = { version = "0.2", default-features = false }
 uart_16550 = { path = ".." }
-uefi = { version = "0.38.0", features = ["alloc", "global_allocator", "panic_handler"] }
-
+uefi = { version = "0.38.0", features = ["alloc", "global_allocator", "jiff02", "panic_handler"] }

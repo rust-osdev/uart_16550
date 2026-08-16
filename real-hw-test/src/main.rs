@@ -8,12 +8,28 @@
 //! access, and public driver APIs so the screen identifies the failing layer.
 
 extern crate alloc;
+extern crate uefi as uefi_rs;
+
+/// Routes existing UEFI diagnostics through the fail-closed test logger.
+mod uefi {
+    pub use crate::test_println as println;
+    pub use uefi_rs::*;
+}
+
+/// Mirrors UEFI diagnostics to the screen and the test-run log file.
+#[macro_export]
+macro_rules! test_println {
+    ($($arg:tt)*) => {
+        $crate::logging::println(core::format_args!($($arg)*))
+    };
+}
 
 mod device;
 mod discovery;
 mod driver_test;
 mod firmware;
 mod interactive;
+mod logging;
 mod preflight;
 mod raw_uart;
 
@@ -23,6 +39,10 @@ use uefi::prelude::*;
 #[entry]
 fn main() -> Status {
     uefi::helpers::init().expect("UEFI helpers should initialize");
+    if let Err(error) = logging::init() {
+        uefi_rs::println!("CRITICAL: cannot create test log: {error}");
+        return Status::DEVICE_ERROR;
+    }
     uefi::println!("uart_16550 real-hardware test");
     firmware::disable_watchdog();
 

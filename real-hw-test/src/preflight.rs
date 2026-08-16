@@ -7,6 +7,7 @@ use alloc::vec::Vec;
 
 use crate::device::Candidate;
 use crate::raw_uart::RawUart;
+use crate::uefi;
 
 #[derive(Clone, Copy, Debug)]
 /// The automatic raw preflight outcome used to gate driver construction.

@@ -11,6 +11,7 @@ use uefi::proto::pci::PciIoAddress;
 use uefi::proto::pci::root_bridge::PciRootBridgeIo;
 
 use crate::device::{Address, Inventory, Source};
+use crate::uefi;
 
 /// Opens each root bridge read-only and searches it for serial-class endpoints.
 pub fn discover(inventory: &mut Inventory) {

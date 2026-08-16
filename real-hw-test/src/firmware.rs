@@ -11,6 +11,8 @@ use uefi::proto::console::serial::Serial;
 use uefi::proto::console::text::Key;
 use uefi::{Handle, Status, system};
 
+use crate::uefi;
+
 /// Disables UEFI's image watchdog so manual prompts do not reset the machine.
 pub fn disable_watchdog() {
     // Manual serial phases may run beyond UEFI's default five-minute limit.

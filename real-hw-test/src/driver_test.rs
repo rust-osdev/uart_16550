@@ -12,6 +12,7 @@ use uart_16550::{BaudRate, Config, ConfigRegisterDump, Uart16550};
 
 use crate::device::{Address, Candidate};
 use crate::preflight;
+use crate::uefi;
 
 /// The public-driver backend selected for a PIO or MMIO candidate.
 pub enum Driver {
