@@ -25,7 +25,7 @@ ARTIFACT := build/$(BOOT_NAME)
 BUILD := CARGO_TARGET_DIR=$(TARGET_DIR) $(CARGO) build
 CLIPPY := CARGO_TARGET_DIR=$(TARGET_DIR) $(CARGO) clippy
 
-.PHONY: all artifact artifacts check qemu qemu-tcg install clean
+.PHONY: all artifact artifacts check qemu qemu-tcg ci-qemu install clean
 
 all: artifact
 
@@ -52,6 +52,9 @@ qemu: artifact
 
 qemu-tcg:
 	$(MAKE) qemu QEMU_ACCEL=tcg
+
+ci-qemu: artifact
+	QEMU="$(QEMU)" OVMF="$(OVMF)" ./scripts/run-qemu-ci.sh $(ARTIFACT)
 
 # Deploys every built architecture; 'make artifacts' first covers them all.
 # Without USB_MOUNT, the media is picked interactively.
