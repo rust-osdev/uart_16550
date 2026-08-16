@@ -12,10 +12,20 @@ extern crate uefi as uefi_rs;
 
 /// The `uefi` crate is bound as `uefi_rs` so that this crate-local `uefi`
 /// module can take its name: every file reaches the library through
-/// `crate::uefi`, which re-exports the crate and can override single items,
-/// such as `println!`, for the whole test without touching call sites.
+/// `crate::uefi`, which re-exports the crate but overrides `println!` with
+/// `test_println!`, so each diagnostic also lands in the log file. The
+/// library's own internal output is unaffected.
 mod uefi {
+    pub use crate::test_println as println;
     pub use uefi_rs::*;
+}
+
+/// Mirrors UEFI diagnostics to the screen and the test-run log file.
+#[macro_export]
+macro_rules! test_println {
+    ($($arg:tt)*) => {
+        $crate::logging::println(core::format_args!($($arg)*))
+    };
 }
 
 mod device;
@@ -23,6 +33,7 @@ mod discovery;
 mod driver_test;
 mod firmware;
 mod interactive;
+mod logging;
 
 use uefi::prelude::*;
 
@@ -38,6 +49,10 @@ compile_error!("unsupported architecture; supported: x86_64, aarch64");
 #[entry]
 fn main() -> Status {
     uefi::helpers::init().expect("UEFI helpers should initialize");
+    if let Err(error) = logging::init() {
+        uefi_rs::println!("CRITICAL: cannot create test log: {error}");
+        return Status::DEVICE_ERROR;
+    }
     uefi::println!("uart_16550 real-hardware test ({ARCH_NAME})");
     firmware::disable_watchdog();
 
