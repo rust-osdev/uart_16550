@@ -20,6 +20,7 @@
             packages = with pkgs; [
               qemu_kvm
               rustup
+              util-linux
             ];
             env.OVMF = "${pkgs.OVMF.fd}/FV/OVMF.fd";
           };

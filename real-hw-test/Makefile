@@ -9,7 +9,7 @@ ARTIFACT := build/BOOTX64.EFI
 BUILD := CARGO_TARGET_DIR=$(TARGET_DIR) $(CARGO) build --locked
 CLIPPY := CARGO_TARGET_DIR=$(TARGET_DIR) $(CARGO) clippy --locked
 
-.PHONY: all artifact check qemu qemu-tcg clean
+.PHONY: all artifact check qemu qemu-tcg install clean
 
 all: artifact
 
@@ -23,6 +23,7 @@ $(ARTIFACT): FORCE
 check:
 	$(CARGO) fmt --check
 	$(CLIPPY) --target $(TARGET) --release -- -D warnings
+	bash -n scripts/*.sh
 	$(MAKE) artifact
 
 qemu: artifact
@@ -31,6 +32,9 @@ qemu: artifact
 
 qemu-tcg:
 	$(MAKE) qemu QEMU_ACCEL=tcg
+
+install: artifact
+	USB_MOUNT="$(USB_MOUNT)" ./scripts/install-usb.sh $(ARTIFACT)
 
 clean:
 	$(CARGO) clean --target-dir $(TARGET_DIR)
