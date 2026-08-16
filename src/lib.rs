@@ -448,6 +448,12 @@ impl<B: Backend> Uart16550<B> {
             check_fn(0x73)?;
         }
 
+        // Clear DLAB.
+        // SAFETY: We operate on valid register addresses.
+        unsafe {
+            self.backend.write(offsets::LCR as u8, 0);
+        }
+
         // Disable all interrupts (for now).
         // SAFETY: We operate on valid register addresses.
         unsafe {
