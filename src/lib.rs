@@ -826,6 +826,12 @@ impl<B: Backend> Uart16550<B> {
     }
 
     /// Fetches the current value from the [`ISR`].
+    ///
+    /// # Side Effects
+    ///
+    /// Reading the [`ISR`] clears a pending transmitter holding register empty
+    /// interrupt if it is the interrupt currently indicated by the [`ISR`].
+    /// This does not clear the corresponding [`LSR::THR_EMPTY`] status flag.
     pub fn isr(&mut self) -> ISR {
         // SAFETY: We operate on valid register addresses.
         let val = unsafe { self.backend.read(offsets::ISR as u8) };
@@ -847,6 +853,12 @@ impl<B: Backend> Uart16550<B> {
     }
 
     /// Fetches the current value from the [`LSR`].
+    ///
+    /// # Side Effects
+    ///
+    /// Reading the [`LSR`] clears a pending receiver line status interrupt.
+    /// It also clears the [`LSR::OVERRUN_ERROR`], [`LSR::PARITY_ERROR`],
+    /// [`LSR::FRAMING_ERROR`], and [`LSR::BREAK_INTERRUPT`] status flags.
     pub fn lsr(&mut self) -> LSR {
         // SAFETY: We operate on valid register addresses.
         let val = unsafe { self.backend.read(offsets::LSR as u8) };
@@ -854,6 +866,11 @@ impl<B: Backend> Uart16550<B> {
     }
 
     /// Fetches the current value from the [`MSR`].
+    ///
+    /// # Side Effects
+    ///
+    /// Reading the [`MSR`] clears a pending modem status interrupt and clears
+    /// the modem status change indicators in bits 0 through 3.
     pub fn msr(&mut self) -> MSR {
         // SAFETY: We operate on valid register addresses.
         let val = unsafe { self.backend.read(offsets::MSR as u8) };
