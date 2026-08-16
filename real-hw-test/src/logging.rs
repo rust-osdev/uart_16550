@@ -18,6 +18,7 @@ use uefi::runtime;
 /// Owns the opened log file and flushes each diagnostic before displaying it.
 struct Logger {
     file: RegularFile,
+    path: String,
 }
 
 /// Holds the single logger used by this synchronous, interrupt-free test.
@@ -43,6 +44,7 @@ pub fn init() -> Result<(), &'static str> {
         time.minute(),
         time.second(),
     );
+    let path = format!("/uart_16550_test_logs/{file_name}");
     let file_name =
         uefi::CString16::try_from(file_name.as_str()).map_err(|_| "log path is invalid")?;
     let mut protocol = boot::get_image_file_system(boot::image_handle())
@@ -75,14 +77,14 @@ pub fn init() -> Result<(), &'static str> {
         .ok_or("test log path is not a regular file")?;
 
     // SAFETY: Initialization runs once before any test diagnostics are emitted.
-    unsafe { *LOGGER.0.get() = Some(Logger::new(file)) };
+    unsafe { *LOGGER.0.get() = Some(Logger::new(file, path)) };
     Ok(())
 }
 
 impl Logger {
     /// Retains one file handle so each write extends the same run transcript.
-    fn new(file: RegularFile) -> Self {
-        Self { file }
+    fn new(file: RegularFile, path: String) -> Self {
+        Self { file, path }
     }
 
     /// Appends one formatted line and flushes it to FAT before console output.
@@ -113,4 +115,18 @@ pub fn println(args: Arguments<'_>) {
         panic!("test log write failed");
     }
     uefi_rs::println!("{}", args);
+}
+
+/// Reports the USB-drive location after a completed or failed test run.
+pub fn report_location() {
+    // SAFETY: The test runs synchronously and `init` installs the sole logger.
+    let path = unsafe { (&*LOGGER.0.get()).as_ref() }
+        .map(|logger| logger.path.clone())
+        .unwrap_or_else(|| {
+            uefi_rs::println!("CRITICAL: test logger was not initialized");
+            panic!("test logger was not initialized");
+        });
+    println(core::format_args!(
+        "Logs were written to the USB drive: {path}"
+    ));
 }
