@@ -397,13 +397,29 @@ impl<B: Backend> Uart16550<B> {
     /// the device works. Further, a call to [`Self::check_connected`] helps to
     /// detect if a remote is connected.
     ///
+    /// # Interrupts
+    ///
+    /// As one of its first steps, this function disables all device interrupts.
+    /// The interrupts selected in the [`Config`] are enabled again only at the
+    /// very end of the initialization sequence.
+    ///
+    /// An interrupt may still become pending after the configured interrupts
+    /// have been enabled but before this function returns, for example because
+    /// data arrives asynchronously.
+    ///
+    /// [`IER::THR_EMPTY`] is a special case. If enabled, it will immediately
+    /// trigger an interrupt because the transmitter is guaranteed to be empty
+    /// when the configured interrupts are enabled at the end of initialization.
+    ///
+    /// **Recommendation:** Therefore, when using the device in an
+    /// interrupt-driven setup, it is safest to call this function from an
+    /// interrupt-free section.
+    ///
     /// # Caution
     ///
     /// Callers must ensure that using this type with the underlying hardware
     /// is done only in a context where such operations are valid and safe
     /// (e.g., you have exclusive device access).
-    ///
-    /// It is recommended to disable interrupts before calling this function.
     ///
     /// Further, the serial config must match the expectations of the receiver
     /// on the other side. Otherwise, garbage will be received.
@@ -430,6 +446,12 @@ impl<B: Backend> Uart16550<B> {
 
             check_fn(0x42)?;
             check_fn(0x73)?;
+        }
+
+        // Clear DLAB.
+        // SAFETY: We operate on valid register addresses.
+        unsafe {
+            self.backend.write(offsets::LCR as u8, 0);
         }
 
         // Disable all interrupts (for now).
@@ -496,13 +518,6 @@ impl<B: Backend> Uart16550<B> {
             self.backend.write(offsets::MCR as u8, mcr.bits());
         }
 
-        // Set interrupts.
-        // SAFETY: We operate on valid register addresses.
-        unsafe {
-            self.backend
-                .write(offsets::IER as u8, self.config.interrupts.bits());
-        }
-
         // In case there is anything in THR, THR's FIFO or TSR (for
         // example because the device was already initialized by another
         // driver), we wait for the data to be drained. This way, we can ensure
@@ -522,6 +537,22 @@ impl<B: Backend> Uart16550<B> {
             } else {
                 hint::spin_loop()
             }
+        }
+
+        // Bring status bits into a clean state.
+        {
+            // Clear receiver line-status deltas / interrupt indicators.
+            let _ = self.lsr();
+
+            // Clear modem-status deltas.
+            let _ = self.msr();
+        }
+
+        // Set interrupts as the last step.
+        // SAFETY: We operate on valid register addresses.
+        unsafe {
+            self.backend
+                .write(offsets::IER as u8, self.config.interrupts.bits());
         }
         Ok(())
     }
@@ -826,6 +857,12 @@ impl<B: Backend> Uart16550<B> {
     }
 
     /// Fetches the current value from the [`ISR`].
+    ///
+    /// # Side Effects
+    ///
+    /// Reading the [`ISR`] clears a pending transmitter holding register empty
+    /// interrupt if it is the interrupt currently indicated by the [`ISR`].
+    /// This does not clear the corresponding [`LSR::THR_EMPTY`] status flag.
     pub fn isr(&mut self) -> ISR {
         // SAFETY: We operate on valid register addresses.
         let val = unsafe { self.backend.read(offsets::ISR as u8) };
@@ -847,6 +884,12 @@ impl<B: Backend> Uart16550<B> {
     }
 
     /// Fetches the current value from the [`LSR`].
+    ///
+    /// # Side Effects
+    ///
+    /// Reading the [`LSR`] clears a pending receiver line status interrupt.
+    /// It also clears the [`LSR::OVERRUN_ERROR`], [`LSR::PARITY_ERROR`],
+    /// [`LSR::FRAMING_ERROR`], and [`LSR::BREAK_INTERRUPT`] status flags.
     pub fn lsr(&mut self) -> LSR {
         // SAFETY: We operate on valid register addresses.
         let val = unsafe { self.backend.read(offsets::LSR as u8) };
@@ -854,6 +897,11 @@ impl<B: Backend> Uart16550<B> {
     }
 
     /// Fetches the current value from the [`MSR`].
+    ///
+    /// # Side Effects
+    ///
+    /// Reading the [`MSR`] clears a pending modem status interrupt and clears
+    /// the modem status change indicators in bits 0 through 3.
     pub fn msr(&mut self) -> MSR {
         // SAFETY: We operate on valid register addresses.
         let val = unsafe { self.backend.read(offsets::MSR as u8) };
