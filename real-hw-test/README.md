@@ -13,7 +13,8 @@ test payloads.
 ## TL;DR
 
 1. Run `make artifact` (or `make artifacts` for every architecture), then
-   deploy the built images to a mounted GPT/FAT32 EFI partition.
+   deploy the built images with `make install`, which lets you pick the mounted
+   GPT/FAT32 EFI partition interactively.
 2. Boot with a monitor and USB keyboard. Leave the monitor connected: it is the
    authoritative diagnostic channel after firmware serial ownership is released.
 3. Confirm the firmware baseline, configure the remote to 9600 8N1, and press
@@ -101,6 +102,34 @@ The result is `build/BOOTX64.EFI`; `make artifact ARCH=aarch64` produces
 `build/BOOTAA64.EFI` instead, and every `make` target accepts `ARCH`.
 `make artifacts` cross-compiles every supported architecture in one step.
 `make check` runs all static build checks.
+
+## Install on USB media
+
+Prepare and mount an EFI partition yourself: the install target never
+partitions, formats, mounts, or unmounts anything. With the media mounted, run:
+
+```console
+make install
+```
+
+This opens an interactive picker listing every mounted FAT32 partition on a GPT
+disk that sits on removable or USB-attached media, with size, label, bus, and
+model. Built-in disks are never listed: they carry the host's own ESP, where
+overwriting `EFI/BOOT` breaks the host's boot path.
+
+Pass the mount point directly to skip the picker, to reach media the picker
+does not list, or for scripted runs without a terminal:
+
+```console
+lsblk -o NAME,SIZE,TYPE,FSTYPE,FSVER,PTTYPE,MOUNTPOINTS
+make install USB_MOUNT=/run/media/<user>/<name>/EFI
+```
+
+Every artifact in `build/` is copied to its removable-media path
+(`EFI/BOOT/BOOTX64.EFI`, `EFI/BOOT/BOOTAA64.EFI`), so one stick boots every
+architecture built beforehand. A disk that is not GPT, a filesystem that is not
+FAT32, a path that is not an exact mount point, or a read-only mount stops the
+installation with a diagnostic. Unmount cleanly before removing the stick.
 
 ## Run under QEMU
 

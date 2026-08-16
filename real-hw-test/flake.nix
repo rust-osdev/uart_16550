@@ -18,14 +18,11 @@
         {
           default = pkgs.mkShell {
             packages = with pkgs; [
-              dosfstools
               fzf
-              mtools
               # The full QEMU: qemu_kvm carries only the host architecture's
               # system emulator, but the aarch64 test needs qemu-system-aarch64.
               qemu
               rustup
-              socat
               util-linux
             ];
             env = {
