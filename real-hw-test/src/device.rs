@@ -25,6 +25,8 @@ impl Display for Address {
 pub enum Discovery {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     RequiredCom1,
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    LegacyProbe,
 }
 
 impl Display for Discovery {
@@ -32,6 +34,8 @@ impl Display for Discovery {
         f.write_str(match self {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Self::RequiredCom1 => "required COM1",
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+            Self::LegacyProbe => "presence check at a conventional port",
         })
     }
 }
