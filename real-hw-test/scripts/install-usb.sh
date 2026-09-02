@@ -57,7 +57,8 @@ fat_version=$(lsblk -dnro FSVER "$source_device")
 [[ "$fat_version" == FAT32 ]] || fail \
     "$source_device reports '${fat_version:-an unknown FAT version}', expected FAT32"
 
-target=$mount_path/EFI/BOOT/BOOTX64.EFI
+# The artifact already carries its architecture's removable-media file name.
+target=$mount_path/EFI/BOOT/$(basename "$artifact")
 echo "Installing to validated media:"
 echo "  disk:       $parent_device (GPT)"
 echo "  partition:  $source_device (FAT32)"
