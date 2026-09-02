@@ -1,9 +1,9 @@
 # uart_16550 UEFI real-hardware test
 
-This subproject builds an x86_64 UEFI application that takes ownership of
-16550-compatible UARTs and exercises this repository's driver. It is a manual
-integration test: automatic register and loopback checks run first, followed by
-an interactive serial menu.
+This subproject builds a UEFI application (x86_64 by default, aarch64 via
+`ARCH=aarch64`) that takes ownership of 16550-compatible UARTs and exercises
+this repository's driver. It is a manual integration test: automatic register
+and loopback checks run first, followed by an interactive serial menu.
 
 All diagnostics use UEFI Simple Text Output and are intended to stay visible on
 the test machine's monitor. They are also persisted, line by line, on the boot
@@ -34,19 +34,22 @@ failure to disable it is reported as a warning on screen.
 
 It discovers:
 
-- COM1 at `0x3f8` unconditionally;
+- COM1 at `0x3f8` unconditionally (x86_64 only);
 - conventional legacy ports at `0x2f8`, `0x3e8`, and `0x2e8` when their scratch
-  registers behave like a UART;
+  registers behave like a UART (x86_64 only);
 - compatible byte-access UARTs advertised by ACPI SPCR;
-- PCI serial-class controllers with an enabled, unambiguous, 16550-compatible
-  BAR0.
+- PCI serial-class controllers with an assigned, unambiguous, 16550-compatible
+  BAR0, enabling its decoding when firmware left the endpoint unbound.
 
 Unsupported ACPI interfaces and ambiguous or vendor-specific PCI layouts are
-reported but not accessed.
+reported but not accessed. Without x86 port instructions, an I/O BAR is reached
+through the memory-mapped PCI I/O window that the platform's ACPI DSDT
+declares; a missing or ambiguous window skips the device.
 
 ## Recommended real-hardware setup
 
-Boot the application on an x86_64 machine with:
+Boot the application on an x86_64 machine (see "Architecture support" for the
+state of other architectures) with:
 
 - UEFI firmware and Secure Boot disabled, unless you sign the application;
 - a monitor connected to the machine;
@@ -93,10 +96,10 @@ terminal to skip a UART that has no connected remote.
 
 ## Build
 
-Install the Rust UEFI target once if necessary:
+Install the Rust UEFI targets once if necessary:
 
 ```console
-rustup target add x86_64-unknown-uefi
+rustup target add x86_64-unknown-uefi aarch64-unknown-uefi
 ```
 
 Then build and stage the removable-media filename:
@@ -106,7 +109,9 @@ make artifact
 file build/BOOTX64.EFI
 ```
 
-The resulting file is `build/BOOTX64.EFI`.
+The resulting file is `build/BOOTX64.EFI`. `make artifact ARCH=aarch64`
+produces `build/BOOTAA64.EFI` instead; every `make` target accepts the same
+`ARCH` variable.
 
 Run all static build checks with:
 
@@ -168,27 +173,56 @@ make qemu-tcg
 arguments, or relocate the temporary directory-backed EFI system partition.
 QEMU data stays below the repository's ignored `target/real-hw-test/` tree.
 
+`make qemu ARCH=aarch64` runs the aarch64 build on QEMU's `virt` machine with
+the EDK2 firmware bundled with QEMU (override via `AAVMF_CODE`/`AAVMF_VARS`).
+The terminal shows the PL011 firmware console, which the application correctly
+rejects as a UART candidate; the only 16550 is the `pci-serial` device, reached
+through the memory-mapped PCI I/O window. TCG is the default accelerator for
+the aarch64 guest.
+
 ### Headless CI smoke test
 
 `make ci-qemu` boots the same artifact as `make artifact` headlessly with QEMU
 TCG; the application contains no CI-specific code. A host-side script answers
 the operator prompts and skips the interactive phase through QEMU-monitor
 `sendkey`, then judges the run by the log the application persists on its boot
-volume and by the serial captures. It requires both legacy COM1 and the QEMU
-PCI serial controller to be discovered and every deterministic raw and
-`uart_16550` check to pass.
+volume and by the serial captures. On x86_64 it requires both legacy COM1 and
+the QEMU PCI serial controller to be discovered; on aarch64 it requires the
+PL011 console to be rejected and the PCI UART to be driven through the
+translated I/O window. Every deterministic raw and `uart_16550` check must
+pass.
 
-The harness needs `socat`, `mtools`, and `dosfstools` next to QEMU and OVMF;
-the Nix development shell provides all of them.
+The harness needs `socat`, `mtools`, and `dosfstools` next to QEMU and the
+firmware; the Nix development shell provides all of them.
 
 ```console
 make ci-qemu
+make ci-qemu ARCH=aarch64
 ```
 
 This smoke test is useful for debugging the test application and preventing its
 automatic QEMU paths from regressing. It does not replace the manual test of a
 real cable, reconnect behavior, firmware-specific ownership handoff, or
 physical hardware.
+
+## Architecture support
+
+x86_64 is the primary target and the only one exercised on physical hardware so
+far. aarch64 is fully validated under QEMU; on real aarch64 machines the test
+is expected to find little today:
+
+- Server-class Arm platforms describe a PL011 or SBSA Generic UART in SPCR,
+  which is not 16550-compatible and is deliberately rejected.
+- Boards whose EDK2 ports do describe a 16550 (for example RK3588) declare
+  32-bit registers at stride 4; the driver only performs byte accesses, so
+  such SPCR layouts are rejected as well.
+- Boards booting through U-Boot's EFI implementation publish a device tree
+  instead of ACPI; the test has no device-tree discovery.
+
+riscv64 is currently not supported because Rust has no riscv64 UEFI target;
+building would require a custom target JSON on nightly with `-Zbuild-std`.
+QEMU's riscv64 `virt` machine would otherwise be a good fit: its ns16550a is
+MMIO-mapped and described by an SPCR with the 16550 interface type.
 
 ## Reading the test output
 
