@@ -1,0 +1,10 @@
+[package]
+name = "uart-16550-real-hw-test"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+jiff = { version = "0.2", default-features = false }
+uart_16550 = { path = ".." }
+uefi = { version = "0.38.0", features = ["alloc", "global_allocator", "jiff02", "panic_handler"] }

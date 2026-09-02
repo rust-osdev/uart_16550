@@ -1,0 +1,59 @@
+name: UEFI real-hardware test smoke test
+
+on: [pull_request, merge_group]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  qemu:
+    name: Headless QEMU TCG (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-uefi,aarch64-unknown-uefi
+      - name: Install QEMU, firmware, and harness tools
+        run: |
+          sudo apt-get update
+          if [[ "${{ matrix.arch }}" == x86_64 ]]; then
+            sudo apt-get install -y dosfstools mtools ovmf qemu-system-x86 socat
+          else
+            sudo apt-get install -y dosfstools mtools qemu-efi-aarch64 qemu-system-arm socat
+          fi
+      - name: Run deterministic UEFI checks
+        working-directory: real-hw-test
+        run: |
+          if [[ "${{ matrix.arch }}" == x86_64 ]]; then
+            # The ovmf package layout varies across Ubuntu releases: combined
+            # vs split images, 4M variants, and symlinks. Prefer combined.
+            OVMF=""
+            for candidate in /usr/share/ovmf/OVMF.fd /usr/share/OVMF/OVMF.fd; do
+              if [[ -r "$candidate" ]]; then
+                OVMF=$candidate
+                break
+              fi
+            done
+            if [[ -z "$OVMF" ]]; then
+              OVMF=$(find -L /usr/share/OVMF /usr/share/ovmf -maxdepth 1 \
+                -name 'OVMF_CODE*.fd' -readable 2>/dev/null | sort | head -n1)
+            fi
+            if [[ -z "$OVMF" ]]; then
+              echo "error: the ovmf package did not install a usable image:" >&2
+              ls -la /usr/share/OVMF /usr/share/ovmf >&2 || true
+              exit 1
+            fi
+            make ci-qemu OVMF="$OVMF"
+          else
+            export AAVMF_CODE=/usr/share/AAVMF/AAVMF_CODE.fd
+            export AAVMF_VARS=/usr/share/AAVMF/AAVMF_VARS.fd
+            make ci-qemu ARCH=aarch64
+          fi

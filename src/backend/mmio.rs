@@ -24,9 +24,10 @@ unsafe impl Send for MmioAddress {}
 impl RegisterAddress for MmioAddress {
     #[inline(always)]
     fn add_offset(self, offset: u8) -> Self {
-        // SAFETY: We ensure on a higher level that the base address is valid
-        // and that this will not wrap.
-        let address = unsafe { self.0.add(offset as usize) };
+        // MMIO is not a Rust allocation; the constructor already rejects
+        // register ranges whose address arithmetic would wrap.
+        let address = self.0.as_ptr().wrapping_add(offset as usize);
+        let address = NonNull::new(address).expect("validated MMIO address offset cannot be null");
         Self(address)
     }
 }
@@ -120,9 +121,11 @@ impl Backend for MmioBackend {
     #[inline(always)]
     unsafe fn _read_register(&mut self, address: MmioAddress) -> u8 {
         debug_assert!(address >= self.base());
-        let upper_bound_incl = (NUM_REGISTERS - 1) * usize::from(u8::from(self.stride));
+        let register_count = NUM_REGISTERS - 1;
+        let upper_bound_incl = register_count * usize::from(u8::from(self.stride));
+        let last_address = self.base().0.as_ptr().wrapping_add(upper_bound_incl);
         // Address is in the device's address range
-        debug_assert!(address.0.as_ptr() <= self.base().0.as_ptr().wrapping_add(upper_bound_incl));
+        debug_assert!(address.0.as_ptr() <= last_address);
 
         // SAFETY: The caller ensured that the MMIO address is safe to use.
         unsafe { arch::mmio_read_register(address) }
@@ -131,9 +134,11 @@ impl Backend for MmioBackend {
     #[inline(always)]
     unsafe fn _write_register(&mut self, address: MmioAddress, value: u8) {
         debug_assert!(address >= self.base());
-        let upper_bound_incl = (NUM_REGISTERS - 1) * usize::from(u8::from(self.stride));
+        let register_count = NUM_REGISTERS - 1;
+        let upper_bound_incl = register_count * usize::from(u8::from(self.stride));
+        let last_address = self.base().0.as_ptr().wrapping_add(upper_bound_incl);
         // Address is in the device's address range
-        debug_assert!(address.0.as_ptr() <= self.base().0.as_ptr().wrapping_add(upper_bound_incl));
+        debug_assert!(address.0.as_ptr() <= last_address);
 
         // SAFETY: The caller ensured that the MMIO address is safe to use.
         unsafe { arch::mmio_write_register(address, value) }
