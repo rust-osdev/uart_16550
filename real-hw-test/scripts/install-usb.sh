@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-artifact=${1:-build/BOOTX64.EFI}
+artifacts=("$@")
 mount_input=${USB_MOUNT:-}
 
 fail() {
@@ -13,9 +13,20 @@ for command in findmnt lsblk install readlink sync; do
     command -v "$command" >/dev/null 2>&1 || fail "required command is missing: $command"
 done
 
+# Without explicit arguments, deploy every architecture that has been built.
+if [[ ${#artifacts[@]} -eq 0 ]]; then
+    for artifact in build/BOOT*.EFI; do
+        [[ -e "$artifact" ]] && artifacts+=("$artifact")
+    done
+fi
+
 [[ -n "$mount_input" ]] || fail \
     "USB_MOUNT is unset; use 'make install USB_MOUNT=/path/to/mounted/efi-partition'"
-[[ -r "$artifact" ]] || fail "UEFI artifact is missing: $artifact (run 'make artifact')"
+[[ ${#artifacts[@]} -gt 0 ]] || fail \
+    "no UEFI artifacts in build/ (run 'make artifact' or 'make artifacts')"
+for artifact in "${artifacts[@]}"; do
+    [[ -r "$artifact" ]] || fail "UEFI artifact is missing: $artifact (run 'make artifact')"
+done
 
 mount_path=$(readlink -f -- "$mount_input") || fail "cannot resolve USB_MOUNT: $mount_input"
 [[ "$mount_path" != / ]] || fail "refusing to install into the root filesystem"
@@ -57,13 +68,15 @@ fat_version=$(lsblk -dnro FSVER "$source_device")
 [[ "$fat_version" == FAT32 ]] || fail \
     "$source_device reports '${fat_version:-an unknown FAT version}', expected FAT32"
 
-# The artifact already carries its architecture's removable-media file name.
-target=$mount_path/EFI/BOOT/$(basename "$artifact")
 echo "Installing to validated media:"
 echo "  disk:       $parent_device (GPT)"
 echo "  partition:  $source_device (FAT32)"
 echo "  mount:      $mount_path"
-echo "  destination: $target"
-install -D -m 0644 -- "$artifact" "$target"
-sync "$target"
+# Each artifact already carries its architecture's removable-media file name.
+for artifact in "${artifacts[@]}"; do
+    target=$mount_path/EFI/BOOT/$(basename "$artifact")
+    echo "  destination: $target"
+    install -D -m 0644 -- "$artifact" "$target"
+    sync "$target"
+done
 echo "Installation complete. Unmount the media cleanly before removing it."

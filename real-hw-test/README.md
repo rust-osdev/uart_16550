@@ -13,8 +13,9 @@ written directly to a UART are deliberately short, recognizable test payloads.
 
 ## TL;DR
 
-1. Run `make artifact`, then deploy `build/BOOTX64.EFI` with `make install` to
-   a mounted GPT/FAT32 EFI partition.
+1. Run `make artifact` (or `make artifacts` for every architecture), then
+   deploy the built images with `make install` to a mounted GPT/FAT32 EFI
+   partition.
 2. Boot with a monitor and USB keyboard. Leave the monitor connected: it is the
    authoritative diagnostic channel after firmware serial ownership is released.
 3. Confirm the firmware baseline, configure the remote to 9600 8N1, and press
@@ -111,7 +112,8 @@ file build/BOOTX64.EFI
 
 The resulting file is `build/BOOTX64.EFI`. `make artifact ARCH=aarch64`
 produces `build/BOOTAA64.EFI` instead; every `make` target accepts the same
-`ARCH` variable.
+`ARCH` variable. `make artifacts` cross-compiles every supported architecture
+in one step.
 
 Run all static build checks with:
 
@@ -133,7 +135,10 @@ lsblk -o NAME,SIZE,TYPE,FSTYPE,FSVER,PTTYPE,MOUNTPOINTS
 make install USB_MOUNT=/run/media/$USER/EFI
 ```
 
-The file is copied to `EFI/BOOT/BOOTX64.EFI`. If the disk is not GPT, the
+Every artifact present in `build/` is copied to its removable-media path, so
+one stick can boot every architecture built beforehand (for example with
+`make artifacts`): `EFI/BOOT/BOOTX64.EFI`, `EFI/BOOT/BOOTAA64.EFI`, and so on.
+If the disk is not GPT, the
 filesystem is not FAT32, the path is not an exact mount point, or the mount is
 not writable, installation stops with a diagnostic. Unmount the partition
 cleanly before removing it.

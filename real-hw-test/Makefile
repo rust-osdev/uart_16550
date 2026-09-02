@@ -1,5 +1,6 @@
 CARGO ?= cargo
 ARCH ?= x86_64
+ARCHS := x86_64 aarch64
 
 ifeq ($(ARCH),x86_64)
 TARGET := x86_64-unknown-uefi
@@ -24,7 +25,7 @@ ARTIFACT := build/$(BOOT_NAME)
 BUILD := CARGO_TARGET_DIR=$(TARGET_DIR) $(CARGO) build --locked
 CLIPPY := CARGO_TARGET_DIR=$(TARGET_DIR) $(CARGO) clippy --locked
 
-.PHONY: all artifact check qemu qemu-tcg ci-qemu install clean
+.PHONY: all artifact artifacts check qemu qemu-tcg ci-qemu install clean
 
 all: artifact
 
@@ -34,6 +35,9 @@ $(ARTIFACT): FORCE
 	$(BUILD) --target $(TARGET) --release
 	mkdir -p $(dir $(ARTIFACT))
 	cp $(BINARY) $(ARTIFACT)
+
+artifacts:
+	for arch in $(ARCHS); do $(MAKE) artifact ARCH=$$arch || exit 1; done
 
 check:
 	$(CARGO) fmt --check
@@ -53,8 +57,9 @@ ci-qemu: artifact
 	ARCH="$(ARCH)" QEMU="$(QEMU)" OVMF="$(OVMF)" \
 		./scripts/run-qemu-ci.sh $(ARTIFACT)
 
+# Deploys every built architecture; 'make artifacts' first covers them all.
 install: artifact
-	USB_MOUNT="$(USB_MOUNT)" ./scripts/install-usb.sh $(ARTIFACT)
+	USB_MOUNT="$(USB_MOUNT)" ./scripts/install-usb.sh
 
 clean:
 	$(CARGO) clean --target-dir $(TARGET_DIR)
