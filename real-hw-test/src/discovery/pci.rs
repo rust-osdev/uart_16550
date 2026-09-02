@@ -112,12 +112,27 @@ fn inspect_serial_controller(
         return;
     }
 
+    // Firmware enables decoding only for endpoints it binds a driver to; an
+    // otherwise valid UART may therefore arrive with its assigned BAR disabled.
+    let needed_enable: u16 = if bar0 & 1 != 0 { 0x0001 } else { 0x0002 };
+    let command = if command & needed_enable == 0 {
+        match enable_decoding(root, address, command | needed_enable) {
+            Some(command) => command,
+            None => {
+                uefi::println!("    SKIP: could not enable BAR0 decoding");
+                return;
+            }
+        }
+    } else {
+        command
+    };
+
     let candidate = if bar0 & 1 != 0 {
         let base = bar0 & !0x3;
-        if command & 1 == 0 || base > u32::from(u16::MAX - 7) {
+        if command & 1 == 0 {
             None
         } else {
-            Some(Address::Port(base as u16))
+            io_bar_address(root, base)
         }
     } else {
         let memory_type = (bar0 >> 1) & 0x3;
@@ -151,6 +166,48 @@ fn inspect_serial_controller(
             function,
         },
     );
+}
+
+/// Sets a missing decode-enable bit and returns the verified command register.
+fn enable_decoding(root: &mut PciRootBridgeIo, address: PciIoAddress, command: u16) -> Option<u16> {
+    root.pci()
+        .write_one(address.with_register(0x04), command)
+        .ok()?;
+    let command = config_u16(root, address, 0x04).ok()?;
+    uefi::println!("    enabled BAR0 decoding: command=0x{command:04x}");
+    Some(command)
+}
+
+/// Uses an I/O BAR directly: x86 port instructions reach PCI I/O space as-is.
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+fn io_bar_address(_root: &mut PciRootBridgeIo, base: u32) -> Option<Address> {
+    (base <= u32::from(u16::MAX - 7)).then_some(Address::Port(base as u16))
+}
+
+/// Translates an I/O BAR into the platform's memory-mapped I/O window.
+///
+/// Without port instructions, PCI I/O space is reached through an MMIO
+/// aperture. Firmware hides its CPU-side base inside the root bridge protocol,
+/// so the window is taken from the platform's ACPI description instead.
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+fn io_bar_address(_root: &mut PciRootBridgeIo, base: u32) -> Option<Address> {
+    let Some(window) = super::acpi::pci_io_window() else {
+        uefi::println!("    SKIP: no unambiguous ACPI PCI I/O window");
+        return None;
+    };
+    let base = u64::from(base);
+    if base < window.pci_min || base + 7 > window.pci_max {
+        uefi::println!("    SKIP: I/O BAR lies outside the ACPI I/O window");
+        return None;
+    }
+    let translated = base
+        .checked_sub(window.pci_min)?
+        .checked_add(window.cpu_base)?;
+    uefi::println!("    I/O window translation: 0x{base:x} -> 0x{translated:x}");
+    Some(Address::Mmio {
+        base: usize::try_from(translated).ok()?,
+        stride: 1,
+    })
 }
 
 /// Reads one byte from PCI configuration space through the root bridge.

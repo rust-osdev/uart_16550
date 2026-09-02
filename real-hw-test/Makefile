@@ -41,7 +41,8 @@ artifacts:
 
 check:
 	$(CARGO) fmt --check
-	$(CLIPPY) --target $(TARGET) --release -- -D warnings
+	$(CLIPPY) --target x86_64-unknown-uefi --release -- -D warnings
+	$(CLIPPY) --target aarch64-unknown-uefi --release -- -D warnings
 	$(MAKE) artifact
 
 qemu: artifact

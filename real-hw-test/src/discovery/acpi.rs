@@ -17,19 +17,7 @@ const MAX_TABLE_LEN: usize = 1024 * 1024;
 /// Locates SPCR from UEFI configuration tables and safely skips invalid data.
 pub fn discover(inventory: &mut Inventory) {
     uefi::println!("\nACPI SPCR discovery:");
-    let rsdp = system::with_config_table(|tables| {
-        tables
-            .iter()
-            .find(|entry| entry.guid == ConfigTableEntry::ACPI2_GUID)
-            .or_else(|| {
-                tables
-                    .iter()
-                    .find(|entry| entry.guid == ConfigTableEntry::ACPI_GUID)
-            })
-            .map(|entry| entry.address as usize)
-    });
-
-    let Some(rsdp) = rsdp else {
+    let Some(rsdp) = rsdp() else {
         uefi::println!("  SKIP: no ACPI RSDP in the UEFI configuration table");
         return;
     };
@@ -39,6 +27,21 @@ pub fn discover(inventory: &mut Inventory) {
         Ok(None) => uefi::println!("  SKIP: no SPCR table"),
         Err(reason) => uefi::println!("  SKIP: invalid ACPI data: {reason}"),
     }
+}
+
+/// Returns the RSDP address from the UEFI configuration table, preferring ACPI 2.
+fn rsdp() -> Option<usize> {
+    system::with_config_table(|tables| {
+        tables
+            .iter()
+            .find(|entry| entry.guid == ConfigTableEntry::ACPI2_GUID)
+            .or_else(|| {
+                tables
+                    .iter()
+                    .find(|entry| entry.guid == ConfigTableEntry::ACPI_GUID)
+            })
+            .map(|entry| entry.address as usize)
+    })
 }
 
 /// The SPCR subset needed to validate and add a byte-access UART candidate.
@@ -113,8 +116,31 @@ fn add_spcr(inventory: &mut Inventory, spcr: SpcrInfo) {
     inventory.add(address, spcr.clock_hz, Source::AcpiSpcr);
 }
 
-/// Validates RSDP and XSDT/RSDT data before finding and decoding an SPCR table.
+/// Finds and decodes an SPCR table, requiring the fields this test consumes.
 fn find_spcr(rsdp_address: usize) -> Result<Option<SpcrInfo>, &'static str> {
+    let Some(table) = find_table(rsdp_address, b"SPCR")? else {
+        return Ok(None);
+    };
+    if table.len() < 80 {
+        return Err("SPCR is too short");
+    }
+    let clock = read_u32(table, 76);
+    Ok(Some(SpcrInfo {
+        interface: table[36],
+        address_space: table[40],
+        bit_width: table[41],
+        bit_offset: table[42],
+        access_size: table[43],
+        base: read_u64(table, 44),
+        clock_hz: (clock != 0).then_some(clock),
+    }))
+}
+
+/// Validates RSDP and XSDT/RSDT data before returning one table by signature.
+fn find_table(
+    rsdp_address: usize,
+    signature: &[u8; 4],
+) -> Result<Option<&'static [u8]>, &'static str> {
     let rsdp = acpi_bytes(rsdp_address, 36)?;
     if &rsdp[..8] != b"RSD PTR " || !checksum_ok(&rsdp[..20]) {
         return Err("bad RSDP signature or checksum");
@@ -148,25 +174,100 @@ fn find_spcr(rsdp_address: usize) -> Result<Option<SpcrInfo>, &'static str> {
             read_u32(entry, 0) as usize
         };
         let header = acpi_bytes(address, SDT_HEADER_LEN)?;
-        if &header[..4] != b"SPCR" {
+        if &header[..4] != signature {
             continue;
         }
-        let table = sdt(address)?;
-        if table.len() < 80 {
-            return Err("SPCR is too short");
-        }
-        let clock = read_u32(table, 76);
-        return Ok(Some(SpcrInfo {
-            interface: table[36],
-            address_space: table[40],
-            bit_width: table[41],
-            bit_offset: table[42],
-            access_size: table[43],
-            base: read_u64(table, 44),
-            clock_hz: (clock != 0).then_some(clock),
-        }));
+        return sdt(address).map(Some);
     }
     Ok(None)
+}
+
+/// The CPU-visible MMIO window ACPI declares for the PCI I/O address space.
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct IoWindow {
+    pub pci_min: u64,
+    pub pci_max: u64,
+    pub cpu_base: u64,
+}
+
+/// Recovers the PCI I/O window translation from the DSDT's resource bytes.
+///
+/// AML resource templates embed plain ACPI address-space descriptors, so a
+/// strictly validated byte scan finds the root bridge's translated I/O range
+/// without an AML interpreter. Ambiguous DSDTs yield no window.
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+pub fn pci_io_window() -> Option<IoWindow> {
+    let fadt = find_table(rsdp()?, b"FACP").ok().flatten()?;
+    let dsdt_address = if fadt.len() >= 148 && read_u64(fadt, 140) != 0 {
+        read_u64(fadt, 140) as usize
+    } else if fadt.len() >= 44 {
+        read_u32(fadt, 40) as usize
+    } else {
+        return None;
+    };
+    let dsdt = sdt(dsdt_address).ok()?;
+
+    let mut found: Option<IoWindow> = None;
+    let mut offset = 0;
+    while offset < dsdt.len() {
+        let (window, size) = match parse_io_descriptor(&dsdt[offset..]) {
+            Some(parsed) => parsed,
+            None => {
+                offset += 1;
+                continue;
+            }
+        };
+        offset += size;
+        match found {
+            None => found = Some(window),
+            Some(previous) if previous == window => {}
+            Some(_) => return None,
+        }
+    }
+    found
+}
+
+/// Decodes one translated DWord/QWord I/O descriptor at the slice's start.
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+fn parse_io_descriptor(bytes: &[u8]) -> Option<(IoWindow, usize)> {
+    const DWORD_IO: (u8, u16, usize) = (0x87, 23, 4);
+    const QWORD_IO: (u8, u16, usize) = (0x8a, 43, 8);
+    const TYPE_IO: u8 = 1;
+
+    let (_, body_len, field_size) = [DWORD_IO, QWORD_IO]
+        .into_iter()
+        .find(|(tag, _, _)| bytes.first() == Some(tag))?;
+    let size = 3 + usize::from(body_len);
+    if bytes.len() < size
+        || u16::from_le_bytes([bytes[1], bytes[2]]) != body_len
+        || bytes[3] != TYPE_IO
+    {
+        return None;
+    }
+    let field = |index: usize| {
+        let offset = 6 + index * field_size;
+        if field_size == 8 {
+            read_u64(bytes, offset)
+        } else {
+            u64::from(read_u32(bytes, offset))
+        }
+    };
+    let (pci_min, pci_max, translation, length) = (field(1), field(2), field(3), field(4));
+
+    // Only an arithmetically consistent, actually translated window is usable.
+    let consistent = pci_min <= pci_max
+        && length == pci_max - pci_min + 1
+        && translation != 0
+        && translation.checked_add(pci_max).is_some();
+    consistent.then_some((
+        IoWindow {
+            pci_min,
+            pci_max,
+            cpu_base: pci_min + translation,
+        },
+        size,
+    ))
 }
 
 /// Borrows mapped firmware ACPI memory after rejecting a null physical address.
