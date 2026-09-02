@@ -163,12 +163,14 @@ reached through the memory-mapped PCI I/O window.
 
 ### Headless CI smoke test
 
-`make ci-qemu` boots the unmodified artifact headlessly under QEMU TCG. A
-host-side script answers the operator prompts through the QEMU monitor and
-judges the run by the persisted log and the serial captures: legacy COM1 and
-the PCI UART must be found and pass. It guards the automatic paths against
-regressions; it does not replace a run on real hardware with a real cable.
-The Nix shell provides the required `socat`, `mtools`, and `dosfstools`.
+`make ci-qemu` (and `make ci-qemu ARCH=aarch64`) boots the unmodified artifact
+headlessly under QEMU TCG. A host-side script answers the operator prompts
+through the QEMU monitor and judges the run by the persisted log and the serial
+captures: on x86_64 legacy COM1 and the PCI UART must be found and pass, on
+aarch64 the PL011 console must be rejected and the PCI UART driven through the
+translated I/O window. It guards the automatic paths against regressions; it
+does not replace a run on real hardware with a real cable. The Nix shell
+provides the required `socat`, `mtools`, and `dosfstools`.
 
 ## Architecture support
 

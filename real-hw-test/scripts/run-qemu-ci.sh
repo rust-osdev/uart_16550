@@ -166,9 +166,16 @@ x86_64)
     assert_log "$console_log" -F '[uart_16550] uart transmit test'
     assert_log "$pci_log" -F '[uart_16550] uart transmit test'
     ;;
-*)
-    echo "error: no CI assertions for ARCH '$arch'" >&2
-    exit 2
+aarch64)
+    # The PL011 console must be rejected; the PCI UART is reached through the
+    # ACPI-described I/O window and driven via the MMIO backend.
+    assert_log "$persisted_log" -F 'SKIP: SPCR interface is not 16450/16550-compatible'
+    assert_log "$persisted_log" -F 'I/O window translation:'
+    assert_log "$persisted_log" -F 'QEMU pci-serial), on the root bus'
+    assert_log "$persisted_log" -F 'found by: PCI enumeration'
+    assert_log "$persisted_log" -F 'Final summary: 1/1 passed'
+    assert_log "$persisted_log" -F '1 interactive skip(s)'
+    assert_log "$pci_log" -F '[uart_16550] uart transmit test'
     ;;
 esac
 

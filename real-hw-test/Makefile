@@ -54,7 +54,8 @@ qemu-tcg:
 	$(MAKE) qemu QEMU_ACCEL=tcg
 
 ci-qemu: artifact
-	QEMU="$(QEMU)" OVMF="$(OVMF)" ./scripts/run-qemu-ci.sh $(ARTIFACT)
+	ARCH="$(ARCH)" QEMU="$(QEMU)" OVMF="$(OVMF)" \
+		./scripts/run-qemu-ci.sh $(ARTIFACT)
 
 # Deploys every built architecture; 'make artifacts' first covers them all.
 # Without USB_MOUNT, the media is picked interactively.
