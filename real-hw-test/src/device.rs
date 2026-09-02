@@ -6,14 +6,19 @@ use uart_16550::spec::CLK_FREQUENCY_HZ;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// A byte-addressable 16550 register block reached through PIO or MMIO.
 pub enum Address {
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     Port(u16),
-    Mmio { base: usize, stride: u8 },
+    Mmio {
+        base: usize,
+        stride: u8,
+    },
 }
 
 impl Display for Address {
     /// Formats an address in the form used by on-screen diagnostics.
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Self::Port(port) => write!(f, "PIO 0x{port:04x}"),
             Self::Mmio { base, stride } => {
                 write!(f, "MMIO 0x{base:x}, stride {stride}")
@@ -25,7 +30,9 @@ impl Display for Address {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// Records how discovery found a candidate so duplicate descriptions remain useful.
 pub enum Source {
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     RequiredCom1,
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     LegacyProbe,
     AcpiSpcr,
     Pci {

@@ -3,6 +3,7 @@
 //! Direct PIO/MMIO operations validate a candidate before `Uart16550` exists,
 //! avoiding a circular test that verifies the driver only with itself.
 
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use core::arch::asm;
 use core::hint;
 
@@ -95,6 +96,7 @@ impl RawUart {
     pub fn read(&mut self, offset: u8) -> u8 {
         debug_assert!(offset < 8);
         match self.address {
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Address::Port(base) => {
                 let port = base + u16::from(offset);
                 let value: u8;
@@ -121,6 +123,7 @@ impl RawUart {
     pub fn write(&mut self, offset: u8, value: u8) {
         debug_assert!(offset < 8);
         match self.address {
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Address::Port(base) => {
                 let port = base + u16::from(offset);
                 // SAFETY: discovery assigned an owned 16550-compatible PIO port.

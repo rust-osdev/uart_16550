@@ -87,9 +87,20 @@ fn add_spcr(inventory: &mut Inventory, spcr: SpcrInfo) {
             base: spcr.base as usize,
             stride: 1,
         },
-        1 if spcr.base <= u64::from(u16::MAX - 7) => Address::Port(spcr.base as u16),
-        0 | 1 => {
+        0 => {
             uefi::println!("  SKIP: SPCR base address is out of range");
+            return;
+        }
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        1 if spcr.base <= u64::from(u16::MAX - 7) => Address::Port(spcr.base as u16),
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        1 => {
+            uefi::println!("  SKIP: SPCR base address is out of range");
+            return;
+        }
+        #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+        1 => {
+            uefi::println!("  SKIP: System I/O access requires x86 port instructions");
             return;
         }
         _ => {

@@ -7,7 +7,9 @@ use alloc::vec::Vec;
 use core::ptr::NonNull;
 use core::time::Duration;
 
-use uart_16550::backend::{MmioBackend, PioBackend};
+use uart_16550::backend::MmioBackend;
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+use uart_16550::backend::PioBackend;
 use uart_16550::spec::registers::{LSR, MCR};
 use uart_16550::{BaudRate, Config, ConfigRegisterDump, Uart16550};
 
@@ -20,6 +22,7 @@ const SEND_TIMEOUT_MS: u64 = 1_000;
 
 /// The public-driver backend selected for a PIO or MMIO candidate.
 pub enum Driver {
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     Port(Uart16550<PioBackend>),
     Mmio(Uart16550<MmioBackend>),
 }
@@ -36,6 +39,7 @@ impl Driver {
     /// Constructs the public backend matching the candidate's address form.
     fn new(address: Address) -> core::result::Result<Self, &'static str> {
         match address {
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Address::Port(port) => {
                 // SAFETY: firmware serial consumers were disconnected before candidate discovery.
                 unsafe { Uart16550::new_port(port) }
@@ -55,6 +59,7 @@ impl Driver {
     /// Initializes either backend with the same configuration for equal coverage.
     fn init(&mut self, config: Config) -> core::result::Result<(), uart_16550::InitError> {
         match self {
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Self::Port(uart) => uart.init(config),
             Self::Mmio(uart) => uart.init(config),
         }
@@ -63,6 +68,7 @@ impl Driver {
     /// Captures a typed register dump for diagnostics and invariant checks.
     pub fn dump(&mut self) -> ConfigRegisterDump {
         match self {
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Self::Port(uart) => uart.config_register_dump(),
             Self::Mmio(uart) => uart.config_register_dump(),
         }
@@ -71,6 +77,7 @@ impl Driver {
     /// Exercises the crate's loopback implementation through the chosen backend.
     pub fn test_loopback(&mut self) -> core::result::Result<(), uart_16550::LoopbackError> {
         match self {
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Self::Port(uart) => uart.test_loopback(),
             Self::Mmio(uart) => uart.test_loopback(),
         }
@@ -81,6 +88,7 @@ impl Driver {
         &mut self,
     ) -> core::result::Result<(), uart_16550::RemoteReadyToReceiveError> {
         match self {
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Self::Port(uart) => uart.check_connected(),
             Self::Mmio(uart) => uart.check_connected(),
         }
@@ -89,6 +97,7 @@ impl Driver {
     /// Delegates the crate's transmitter-readiness check to either backend.
     fn ready_to_send(&mut self) -> core::result::Result<(), uart_16550::ByteSendError> {
         match self {
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Self::Port(uart) => uart.ready_to_send(),
             Self::Mmio(uart) => uart.ready_to_send(),
         }
@@ -97,6 +106,7 @@ impl Driver {
     /// Sends one byte with the crate's fallible API for explicit coverage.
     fn try_send_byte(&mut self, byte: u8) -> core::result::Result<(), uart_16550::ByteSendError> {
         match self {
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Self::Port(uart) => uart.try_send_byte(byte),
             Self::Mmio(uart) => uart.try_send_byte(byte),
         }
@@ -105,6 +115,7 @@ impl Driver {
     /// Attempts a slice write and returns the crate's partial-write progress.
     fn send_bytes(&mut self, bytes: &[u8]) -> usize {
         match self {
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Self::Port(uart) => uart.send_bytes(bytes),
             Self::Mmio(uart) => uart.send_bytes(bytes),
         }
@@ -113,6 +124,7 @@ impl Driver {
     /// Completes a slice write through the crate's synchronous convenience API.
     pub fn send_bytes_exact(&mut self, bytes: &[u8]) {
         match self {
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Self::Port(uart) => uart.send_bytes_exact(bytes),
             Self::Mmio(uart) => uart.send_bytes_exact(bytes),
         }
@@ -121,6 +133,7 @@ impl Driver {
     /// Polls one received byte so interactive checks never block keyboard input.
     pub fn try_receive_byte(&mut self) -> core::result::Result<u8, uart_16550::ByteReceiveError> {
         match self {
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Self::Port(uart) => uart.try_receive_byte(),
             Self::Mmio(uart) => uart.try_receive_byte(),
         }
