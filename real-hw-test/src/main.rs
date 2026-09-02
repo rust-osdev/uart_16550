@@ -35,6 +35,14 @@ mod raw_uart;
 
 use uefi::prelude::*;
 
+/// The target architecture, recorded in diagnostics and log file names.
+#[cfg(target_arch = "aarch64")]
+pub const ARCH_NAME: &str = "aarch64";
+#[cfg(target_arch = "x86_64")]
+pub const ARCH_NAME: &str = "x86_64";
+#[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
+compile_error!("unsupported architecture; supported: x86_64, aarch64");
+
 /// Starts the UEFI test and returns success while later commits add phases.
 #[entry]
 fn main() -> Status {
@@ -43,7 +51,7 @@ fn main() -> Status {
         uefi_rs::println!("CRITICAL: cannot create test log: {error}");
         return Status::DEVICE_ERROR;
     }
-    uefi::println!("uart_16550 real-hardware test");
+    uefi::println!("uart_16550 real-hardware test ({ARCH_NAME})");
     firmware::disable_watchdog();
 
     if !firmware::disconnect_serial_controllers() {

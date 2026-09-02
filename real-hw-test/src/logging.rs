@@ -36,7 +36,8 @@ pub fn init() -> Result<(), &'static str> {
     let time = runtime::get_time().map_err(|_| "could not read UEFI time")?;
     let time = DateTime::try_from(time).map_err(|_| "UEFI time is invalid")?;
     let file_name = format!(
-        "uart_16550_{:04}-{:02}-{:02}_{:02}-{:02}-{:02}.txt",
+        "uart_16550_{}_{:04}-{:02}-{:02}_{:02}-{:02}-{:02}.txt",
+        crate::ARCH_NAME,
         time.year(),
         time.month(),
         time.day(),
