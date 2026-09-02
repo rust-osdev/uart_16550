@@ -204,15 +204,18 @@ the aarch64 guest.
 TCG; the application contains no CI-specific code. A host-side script answers
 the operator prompts and skips the interactive phase through QEMU-monitor
 `sendkey`, then judges the run by the log the application persists on its boot
-volume and by the serial captures. It requires both legacy COM1 and the QEMU
-PCI serial controller to be discovered and every deterministic
-`uart_16550` check to pass.
+volume and by the serial captures. On x86_64 it requires both legacy COM1 and
+the QEMU PCI serial controller to be discovered; on aarch64 it requires the
+PL011 console to be rejected and the PCI UART to be driven through the
+translated I/O window. Every deterministic `uart_16550` check must
+pass.
 
-The harness needs `socat`, `mtools`, and `dosfstools` next to QEMU and OVMF;
-the Nix development shell provides all of them.
+The harness needs `socat`, `mtools`, and `dosfstools` next to QEMU and the
+firmware; the Nix development shell provides all of them.
 
 ```console
 make ci-qemu
+make ci-qemu ARCH=aarch64
 ```
 
 This smoke test is useful for debugging the test application and preventing its
