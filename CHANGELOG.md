@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- New public method `Uart16550::check_present()`: probes for a device through
+  the scratch register. `Uart16550::init()` now delegates its existing
+  presence check to it and still fails with `InitError::DeviceNotPresent`.
+
 ## 0.8.0 - 2026-08-16
 
 - **Breaking:** `Config::default()` now disables **all** interrupts by default

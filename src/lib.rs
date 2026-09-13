@@ -387,11 +387,23 @@ impl Uart16550<MmioBackend> {
 impl<B: Backend> Uart16550<B> {
     /* ----- Init, Setup, Tests --------------------------------------------- */
 
+    /// Checks if a device answers at the base address by checking the [`SPR`]
+    /// register.
+    pub fn check_present(&mut self) -> bool {
+        [0x42, 0x73].into_iter().all(|pattern| {
+            // SAFETY: We operate on valid register addresses.
+            unsafe {
+                self.backend.write(offsets::SPR as u8, pattern);
+                self.backend.read(offsets::SPR as u8) == pattern
+            }
+        })
+    }
+
     /// Initializes the devices according to the provided [`Config`] including a
     /// few typical as well as opinionated settings.
     ///
-    /// This function also tries to detect if the UART is present at all by
-    /// writing a byte to the [`SPR`] register and read it back afterwards.
+    /// This function first calls [`Self::check_present`] and fails with
+    /// [`InitError::DeviceNotPresent`] if no device answers.
     ///
     /// It is **recommended** to call [`Self::test_loopback`] next to check that
     /// the device works. Further, a call to [`Self::check_connected`] helps to
@@ -427,25 +439,8 @@ impl<B: Backend> Uart16550<B> {
         // It is important to set this early as some helpers rely on that.
         self.config = config;
 
-        // SPR test: write something and try to read it again.
-        // => detect if UART16550 is there
-        {
-            let mut check_fn = |write| {
-                // SAFETY: We operate on valid register addresses.
-                let read = unsafe {
-                    self.backend.write(offsets::SPR as u8, write);
-                    self.backend.read(offsets::SPR as u8)
-                };
-
-                if read != write {
-                    return Err(InitError::DeviceNotPresent);
-                }
-
-                Ok(())
-            };
-
-            check_fn(0x42)?;
-            check_fn(0x73)?;
+        if !self.check_present() {
+            return Err(InitError::DeviceNotPresent);
         }
 
         // Clear DLAB.
