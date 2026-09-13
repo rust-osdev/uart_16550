@@ -17,6 +17,7 @@ mod uefi {
 
 mod device;
 mod discovery;
+mod driver_test;
 mod firmware;
 
 use uefi::prelude::*;
@@ -50,7 +51,26 @@ fn main() -> Status {
             candidate.sources
         );
     }
-    uefi::println!("\nDiscovery complete. Press Enter to return to firmware.");
+
+    let drivers = driver_test::run(inventory.candidates());
+    let passed = drivers.iter().filter(|result| result.passed).count();
+    let warnings = drivers
+        .iter()
+        .filter(|result| result.connection_warning)
+        .count();
+    let initialized = drivers
+        .iter()
+        .filter(|result| result.driver.is_some())
+        .count();
+    uefi::println!(
+        "\nAutomatic summary: {passed}/{} passed, {warnings} connection warning(s), {initialized} initialized.",
+        drivers.len()
+    );
+    uefi::println!("Press Enter to return to firmware.");
     firmware::wait_for_enter();
-    Status::SUCCESS
+    if passed == drivers.len() {
+        Status::SUCCESS
+    } else {
+        Status::DEVICE_ERROR
+    }
 }
