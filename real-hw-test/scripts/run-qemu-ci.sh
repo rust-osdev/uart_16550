@@ -196,8 +196,10 @@ case "$arch" in
 x86_64)
     # Legacy COM1 plus the PCI UART, both driven through their captures.
     assert_log "$persisted_log" -F 'PIO 0x03f8'
-    assert_log "$persisted_log" -F 'RequiredCom1'
-    assert_log "$persisted_log" -E 'sources=\[.*Pci'
+    assert_log "$persisted_log" -F 'location: built-in legacy port'
+    assert_log "$persisted_log" -F 'found by: required COM1'
+    assert_log "$persisted_log" -F 'QEMU pci-serial), on the root bus'
+    assert_log "$persisted_log" -F 'found by: PCI enumeration'
     assert_log "$persisted_log" -F 'Final summary: 2/2 passed'
     assert_log "$persisted_log" -F '2 interactive skip(s)'
     assert_log "$console_log" -F '[uart_16550] uart transmit test'
@@ -208,7 +210,8 @@ aarch64)
     # ACPI-described I/O window and driven via the MMIO backend.
     assert_log "$persisted_log" -F 'SKIP: SPCR interface is not 16450/16550-compatible'
     assert_log "$persisted_log" -F 'I/O window translation:'
-    assert_log "$persisted_log" -E 'sources=\[.*Pci'
+    assert_log "$persisted_log" -F 'QEMU pci-serial), on the root bus'
+    assert_log "$persisted_log" -F 'found by: PCI enumeration'
     assert_log "$persisted_log" -F 'Final summary: 1/1 passed'
     assert_log "$persisted_log" -F '1 interactive skip(s)'
     assert_log "$pci_log" -F '[uart_16550] uart transmit test'

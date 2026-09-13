@@ -62,11 +62,12 @@ fn main() -> Status {
     uefi::println!("\nUsable UART candidates: {}", inventory.candidates().len());
     for (index, candidate) in inventory.candidates().iter().enumerate() {
         uefi::println!(
-            "  [{index}] {} clock={} Hz sources={:?}",
+            "  [{index}] {} clock={} Hz",
             candidate.address,
-            candidate.clock_hz,
-            candidate.sources
+            candidate.clock_hz
         );
+        uefi::println!("      location: {}", candidate.location);
+        uefi::println!("      found by: {}", candidate.found_by());
     }
 
     let mut drivers = driver_test::run(inventory.candidates());

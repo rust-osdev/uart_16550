@@ -249,6 +249,16 @@ confirms firmware still owns the serial output. After controllers are
 disconnected, remote output may stop; continue reading diagnostics on the
 monitor.
 
+Every usable candidate is listed with how its registers are reached (PIO or
+MMIO), where it lives, and which discovery paths found it. Locations are
+`built-in legacy port` (a conventional COM address), `built-in platform UART`
+(a memory-mapped UART that firmware describes without a PCI identity), or a
+PCI function with its address and vendor/device IDs, noted as
+`on the root bus` (typically integrated on the board) or `behind a bridge`
+(typically an add-in card); known QEMU devices are named. Discovery paths are
+`required COM1`, `presence check at a conventional port`, `ACPI SPCR`, and
+`PCI enumeration`; one UART described by several paths appears once.
+
 Good signs are:
 
 - `PASS` for crate `init`, initialized register values, crate loopback, and

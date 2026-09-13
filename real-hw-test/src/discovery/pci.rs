@@ -8,9 +8,10 @@ use alloc::vec::Vec;
 use uefi::Status;
 use uefi::boot::{self, OpenProtocolAttributes, OpenProtocolParams};
 use uefi::proto::pci::PciIoAddress;
+use uefi::proto::pci::configuration::ResourceRangeType;
 use uefi::proto::pci::root_bridge::PciRootBridgeIo;
 
-use crate::device::{Address, Inventory, Source};
+use crate::device::{Address, Attachment, Discovery, Inventory, Location, PciFunction};
 use crate::uefi;
 
 /// Opens each root bridge read-only and searches it for serial-class endpoints.
@@ -58,6 +59,14 @@ fn discover_root(root: &mut PciRootBridgeIo, inventory: &mut Inventory) {
         }
     };
     let addresses: Vec<_> = tree.iter().copied().collect();
+    // The bridge's own bus starts its bus range: functions there are integrated
+    // controllers, functions on later buses sit behind a bridge.
+    let root_bus = root.configuration().ok().and_then(|descriptors| {
+        descriptors
+            .iter()
+            .find(|descriptor| descriptor.resource_range_type == ResourceRangeType::Bus)
+            .map(|descriptor| descriptor.address_min as u8)
+    });
 
     for address in addresses {
         let Ok(class_register) = config_u32(root, address, 0x08) else {
@@ -69,7 +78,7 @@ fn discover_root(root: &mut PciRootBridgeIo, inventory: &mut Inventory) {
             continue;
         }
 
-        inspect_serial_controller(root, segment, address, class_register, inventory);
+        inspect_serial_controller(root, segment, root_bus, address, class_register, inventory);
     }
 }
 
@@ -77,6 +86,7 @@ fn discover_root(root: &mut PciRootBridgeIo, inventory: &mut Inventory) {
 fn inspect_serial_controller(
     root: &mut PciRootBridgeIo,
     segment: u32,
+    root_bus: Option<u8>,
     address: PciIoAddress,
     class_register: u32,
     inventory: &mut Inventory,
@@ -155,17 +165,24 @@ fn inspect_serial_controller(
         uefi::println!("    SKIP: BAR0 is disabled, invalid, or unsupported");
         return;
     };
-    uefi::println!("    candidate: {candidate}");
-    inventory.add(
-        candidate,
-        None,
-        Source::Pci {
-            segment,
-            bus,
-            device,
-            function,
-        },
-    );
+    let attachment = root_bus.map(|root_bus| {
+        if bus == root_bus {
+            Attachment::OnRootBus
+        } else {
+            Attachment::BehindBridge
+        }
+    });
+    let location = Location::Pci(PciFunction {
+        segment,
+        bus,
+        device,
+        function,
+        vendor_id: vendor,
+        device_id,
+        attachment,
+    });
+    uefi::println!("    candidate: {candidate} ({location})");
+    inventory.add(candidate, None, Discovery::PciEnumeration, location);
 }
 
 /// Sets a missing decode-enable bit and returns the verified command register.

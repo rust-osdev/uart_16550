@@ -8,7 +8,7 @@ use uart_16550::Uart16550;
 
 use crate::device::Inventory;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-use crate::device::{Address, Source};
+use crate::device::{Address, Discovery, Location};
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use crate::uefi;
 
@@ -40,9 +40,9 @@ fn discover_legacy(inventory: &mut Inventory) {
         );
 
         if index == 0 {
-            inventory.add(address, None, Source::RequiredCom1);
+            inventory.add(address, None, Discovery::RequiredCom1, Location::LegacyPort);
         } else if present {
-            inventory.add(address, None, Source::LegacyProbe);
+            inventory.add(address, None, Discovery::LegacyProbe, Location::LegacyPort);
         }
     }
 }

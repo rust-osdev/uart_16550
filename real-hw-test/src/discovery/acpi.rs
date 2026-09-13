@@ -8,7 +8,7 @@ use core::slice;
 use uefi::system;
 use uefi::table::cfg::ConfigTableEntry;
 
-use crate::device::{Address, Inventory, Source};
+use crate::device::{Address, Discovery, Inventory, Location, PciFunction};
 use crate::uefi;
 
 const SDT_HEADER_LEN: usize = 36;
@@ -54,6 +54,18 @@ struct SpcrInfo {
     access_size: u8,
     base: u64,
     clock_hz: Option<u32>,
+    pci: Option<SpcrPci>,
+}
+
+/// The PCI identity SPCR carries when the console UART is a PCI function.
+#[derive(Clone, Copy)]
+struct SpcrPci {
+    segment: u8,
+    bus: u8,
+    device: u8,
+    function: u8,
+    vendor_id: u16,
+    device_id: u16,
 }
 
 /// Accepts only SPCR layouts that the byte-oriented driver can safely access.
@@ -71,6 +83,17 @@ fn add_spcr(inventory: &mut Inventory, spcr: SpcrInfo) {
         spcr.access_size,
         spcr.clock_hz
     );
+    if let Some(pci) = spcr.pci {
+        uefi::println!(
+            "  PCI identity: {:04x}:{:02x}:{:02x}.{} {:04x}:{:04x}",
+            pci.segment,
+            pci.bus,
+            pci.device,
+            pci.function,
+            pci.vendor_id,
+            pci.device_id
+        );
+    }
 
     if !matches!(spcr.interface, 0x00 | 0x01 | 0x12) {
         uefi::println!("  SKIP: SPCR interface is not 16450/16550-compatible");
@@ -112,8 +135,24 @@ fn add_spcr(inventory: &mut Inventory, spcr: SpcrInfo) {
         }
     };
 
-    uefi::println!("  candidate: {address}");
-    inventory.add(address, spcr.clock_hz, Source::AcpiSpcr);
+    let location = match spcr.pci {
+        Some(pci) => Location::Pci(PciFunction {
+            segment: u32::from(pci.segment),
+            bus: pci.bus,
+            device: pci.device,
+            function: pci.function,
+            vendor_id: pci.vendor_id,
+            device_id: pci.device_id,
+            attachment: None,
+        }),
+        None => match address {
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+            Address::Port(_) => Location::LegacyPort,
+            Address::Mmio { .. } => Location::Platform,
+        },
+    };
+    uefi::println!("  candidate: {address} ({location})");
+    inventory.add(address, spcr.clock_hz, Discovery::AcpiSpcr, location);
 }
 
 /// Finds and decodes an SPCR table, requiring the fields this test consumes.
@@ -125,6 +164,17 @@ fn find_spcr(rsdp_address: usize) -> Result<Option<SpcrInfo>, &'static str> {
         return Err("SPCR is too short");
     }
     let clock = read_u32(table, 76);
+    let (device_id, vendor_id) = (read_u16(table, 64), read_u16(table, 66));
+    // Revision 2 added the PCI identity; 0xffff marks a console that is not
+    // a PCI function.
+    let pci = (table[8] >= 2 && device_id != 0xffff && vendor_id != 0xffff).then(|| SpcrPci {
+        segment: table[75],
+        bus: table[68],
+        device: table[69],
+        function: table[70],
+        vendor_id,
+        device_id,
+    });
     Ok(Some(SpcrInfo {
         interface: table[36],
         address_space: table[40],
@@ -133,6 +183,7 @@ fn find_spcr(rsdp_address: usize) -> Result<Option<SpcrInfo>, &'static str> {
         access_size: table[43],
         base: read_u64(table, 44),
         clock_hz: (clock != 0).then_some(clock),
+        pci,
     }))
 }
 
@@ -295,6 +346,14 @@ fn sdt(address: usize) -> Result<&'static [u8], &'static str> {
 /// Applies ACPI's wrapping-byte checksum rule to one complete table region.
 fn checksum_ok(bytes: &[u8]) -> bool {
     bytes.iter().fold(0_u8, |sum, byte| sum.wrapping_add(*byte)) == 0
+}
+
+/// Decodes a bounds-checked little-endian 16-bit ACPI field without raw offsets.
+fn read_u16(bytes: &[u8], offset: usize) -> u16 {
+    let value = bytes[offset..offset + 2]
+        .try_into()
+        .expect("caller validated ACPI field bounds");
+    u16::from_le_bytes(value)
 }
 
 /// Decodes a bounds-checked little-endian 32-bit ACPI field without raw offsets.
