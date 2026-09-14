@@ -2,9 +2,11 @@
 
 ## Unreleased
 
+## 0.8.1 - 2026-09-14
+
 - New public method `Uart16550::check_present()`: probes for a device through
-  the scratch register. `Uart16550::init()` now delegates its existing
-  presence check to it and still fails with `InitError::DeviceNotPresent`.
+  the scratch register. `Uart16550::init()` now delegates its existing presence
+  check to it and still fails with `InitError::DeviceNotPresent`.
 
 ## 0.8.0 - 2026-08-16
 
