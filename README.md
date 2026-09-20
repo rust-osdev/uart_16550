@@ -93,6 +93,13 @@ fn main() {
 }
 ```
 
+## Testing
+
+- There is a manual integration test packaged as UEFI application that you can
+  boot on real hardware: [./real-hw-test](./real-hw-test/README.md)
+- There is an integration test that can run as a VM in
+  [./integration-test](./integration-test)
+
 ## License
 
 This project is licensed under either of
