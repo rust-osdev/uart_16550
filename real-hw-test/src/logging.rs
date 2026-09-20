@@ -127,7 +127,7 @@ pub fn report_location() {
             uefi_rs::println!("CRITICAL: test logger was not initialized");
             panic!("test logger was not initialized");
         });
-    println(core::format_args!(
+    println(format_args!(
         "Logs were written to the USB drive: {path}"
     ));
 }

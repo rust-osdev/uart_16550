@@ -1,6 +1,7 @@
 #![no_main]
 #![no_std]
 #![deny(clippy::undocumented_unsafe_blocks)]
+#![deny(clippy::absolute_paths)]
 
 //! Manual UEFI integration test for this repository's `uart_16550` driver.
 //!

@@ -5,6 +5,7 @@
 
 use alloc::vec::Vec;
 use core::ptr::NonNull;
+use core::result;
 use core::time::Duration;
 
 use uart_16550::backend::MmioBackend;
@@ -49,7 +50,7 @@ impl Result {
 
 impl Driver {
     /// Constructs the public backend matching the candidate's address form.
-    fn new(address: Address) -> core::result::Result<Self, &'static str> {
+    fn new(address: Address) -> result::Result<Self, &'static str> {
         match address {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Address::Port(port) => {
@@ -69,7 +70,7 @@ impl Driver {
     }
 
     /// Initializes either backend with the same configuration for equal coverage.
-    fn init(&mut self, config: Config) -> core::result::Result<(), uart_16550::InitError> {
+    fn init(&mut self, config: Config) -> result::Result<(), uart_16550::InitError> {
         match self {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Self::Port(uart) => uart.init(config),
@@ -87,7 +88,7 @@ impl Driver {
     }
 
     /// Exercises the crate's loopback implementation through the chosen backend.
-    pub fn test_loopback(&mut self) -> core::result::Result<(), uart_16550::LoopbackError> {
+    pub fn test_loopback(&mut self) -> result::Result<(), uart_16550::LoopbackError> {
         match self {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Self::Port(uart) => uart.test_loopback(),
@@ -96,9 +97,7 @@ impl Driver {
     }
 
     /// Samples modem-control inputs to diagnose remote cable wiring.
-    pub fn check_connected(
-        &mut self,
-    ) -> core::result::Result<(), uart_16550::RemoteReadyToReceiveError> {
+    pub fn check_connected(&mut self) -> result::Result<(), uart_16550::RemoteReadyToReceiveError> {
         match self {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Self::Port(uart) => uart.check_connected(),
@@ -107,7 +106,7 @@ impl Driver {
     }
 
     /// Delegates the crate's transmitter-readiness check to either backend.
-    fn ready_to_send(&mut self) -> core::result::Result<(), uart_16550::ByteSendError> {
+    fn ready_to_send(&mut self) -> result::Result<(), uart_16550::ByteSendError> {
         match self {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Self::Port(uart) => uart.ready_to_send(),
@@ -116,7 +115,7 @@ impl Driver {
     }
 
     /// Sends one byte with the crate's fallible API for explicit coverage.
-    fn try_send_byte(&mut self, byte: u8) -> core::result::Result<(), uart_16550::ByteSendError> {
+    fn try_send_byte(&mut self, byte: u8) -> result::Result<(), uart_16550::ByteSendError> {
         match self {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Self::Port(uart) => uart.try_send_byte(byte),
@@ -143,7 +142,7 @@ impl Driver {
     }
 
     /// Polls one received byte so interactive checks never block keyboard input.
-    pub fn try_receive_byte(&mut self) -> core::result::Result<u8, uart_16550::ByteReceiveError> {
+    pub fn try_receive_byte(&mut self) -> result::Result<u8, uart_16550::ByteReceiveError> {
         match self {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             Self::Port(uart) => uart.try_receive_byte(),
@@ -222,7 +221,7 @@ fn run_one(candidate: &Candidate) -> Result {
 }
 
 /// Uses every send API in one recognizable payload for remote verification.
-fn exercise_send_apis(driver: &mut Driver) -> core::result::Result<(), &'static str> {
+fn exercise_send_apis(driver: &mut Driver) -> result::Result<(), &'static str> {
     driver.ready_to_send().map_err(|_| "not ready to send")?;
     driver
         .try_send_byte(b'[')
@@ -237,10 +236,7 @@ fn exercise_send_apis(driver: &mut Driver) -> core::result::Result<(), &'static 
 }
 
 /// Retries the nonblocking send API long enough for a physical UART to drain.
-fn send_all_with_timeout(
-    driver: &mut Driver,
-    bytes: &[u8],
-) -> core::result::Result<(), &'static str> {
+fn send_all_with_timeout(driver: &mut Driver, bytes: &[u8]) -> result::Result<(), &'static str> {
     let mut remaining = bytes;
     for _ in 0..SEND_TIMEOUT_MS {
         let written = driver.send_bytes(remaining);
@@ -254,7 +250,7 @@ fn send_all_with_timeout(
 }
 
 /// Bounds the prerequisite for `send_bytes_exact`, which has no timeout API.
-fn wait_until_ready_to_send(driver: &mut Driver) -> core::result::Result<(), &'static str> {
+fn wait_until_ready_to_send(driver: &mut Driver) -> result::Result<(), &'static str> {
     for _ in 0..SEND_TIMEOUT_MS {
         if driver.ready_to_send().is_ok() {
             return Ok(());
