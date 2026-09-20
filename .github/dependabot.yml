@@ -1,7 +1,10 @@
 version: 2
 updates:
   - package-ecosystem: cargo
-    directory: "/"
+    directories:
+      - "/"
+      - "/real-hw-test"
+      - "/test"
     schedule:
       interval: monthly
     open-pull-requests-limit: 10
