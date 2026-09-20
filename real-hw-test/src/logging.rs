@@ -19,6 +19,7 @@ use uefi::runtime;
 struct Logger {
     file: RegularFile,
     path: String,
+    started: String,
 }
 
 /// Holds the single logger used by this synchronous, interrupt-free test.
@@ -46,6 +47,15 @@ pub fn init() -> Result<(), &'static str> {
         time.second(),
     );
     let path = format!("/uart_16550_test_logs/{file_name}");
+    let started = format!(
+        "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+        time.year(),
+        time.month(),
+        time.day(),
+        time.hour(),
+        time.minute(),
+        time.second(),
+    );
     let file_name =
         uefi::CString16::try_from(file_name.as_str()).map_err(|_| "log path is invalid")?;
     let mut protocol = boot::get_image_file_system(boot::image_handle())
@@ -78,14 +88,18 @@ pub fn init() -> Result<(), &'static str> {
         .ok_or("test log path is not a regular file")?;
 
     // SAFETY: Initialization runs once before any test diagnostics are emitted.
-    unsafe { *LOGGER.0.get() = Some(Logger::new(file, path)) };
+    unsafe { *LOGGER.0.get() = Some(Logger::new(file, path, started)) };
     Ok(())
 }
 
 impl Logger {
     /// Retains one file handle so each write extends the same run transcript.
-    fn new(file: RegularFile, path: String) -> Self {
-        Self { file, path }
+    fn new(file: RegularFile, path: String, started: String) -> Self {
+        Self {
+            file,
+            path,
+            started,
+        }
     }
 
     /// Appends one formatted line and flushes it to FAT before console output.
@@ -118,16 +132,24 @@ pub fn println(args: Arguments<'_>) {
     uefi_rs::println!("{}", args);
 }
 
+/// Reads one value from the installed logger; the test cannot run without it.
+fn logger_field<T>(field: impl FnOnce(&Logger) -> T) -> T {
+    // SAFETY: The test runs synchronously and `init` installs the sole logger.
+    let logger = unsafe { (&*LOGGER.0.get()).as_ref() };
+    logger.map(field).unwrap_or_else(|| {
+        uefi_rs::println!("CRITICAL: test logger was not initialized");
+        panic!("test logger was not initialized");
+    })
+}
+
+/// Reports when the run started according to the firmware clock.
+pub fn report_start_time() {
+    let started = logger_field(|logger| logger.started.clone());
+    println(format_args!("Started at {started} (UEFI clock)"));
+}
+
 /// Reports the USB-drive location after a completed or failed test run.
 pub fn report_location() {
-    // SAFETY: The test runs synchronously and `init` installs the sole logger.
-    let path = unsafe { (&*LOGGER.0.get()).as_ref() }
-        .map(|logger| logger.path.clone())
-        .unwrap_or_else(|| {
-            uefi_rs::println!("CRITICAL: test logger was not initialized");
-            panic!("test logger was not initialized");
-        });
-    println(format_args!(
-        "Logs were written to the USB drive: {path}"
-    ));
+    let path = logger_field(|logger| logger.path.clone());
+    println(format_args!("Logs were written to the USB drive: {path}"));
 }

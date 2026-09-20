@@ -55,6 +55,7 @@ fn main() -> Status {
         return Status::DEVICE_ERROR;
     }
     uefi::println!("uart_16550 real-hardware test ({ARCH_NAME})");
+    logging::report_start_time();
     firmware::disable_watchdog();
 
     if !firmware::disconnect_serial_controllers() {
