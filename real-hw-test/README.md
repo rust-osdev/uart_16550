@@ -153,7 +153,7 @@ Outside Nix, pass the firmware explicitly (`OVMF=/path/to/OVMF.fd make qemu`).
 KVM is the default; `make qemu-tcg` (or `QEMU_ACCEL=tcg`) selects software
 emulation. `QEMU`, `QEMU_ARGS`, and `ESP_DIR` override the executable, add
 arguments, or relocate the directory-backed EFI system partition; QEMU data
-stays below the ignored `target/real-hw-test/` tree.
+stays below the crate's `target/` tree.
 
 `make qemu ARCH=aarch64` runs the aarch64 build on QEMU's `virt` machine with
 the EDK2 firmware bundled with QEMU (`AAVMF_CODE`/`AAVMF_VARS` override it),

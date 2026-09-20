@@ -4,7 +4,7 @@ set -euo pipefail
 arch=${ARCH:-x86_64}
 qemu=${QEMU:-qemu-system-$arch}
 artifact=${1:-build/BOOTX64.EFI}
-run_dir=${CI_RUN_DIR:-../target/real-hw-test/qemu-ci-$arch}
+run_dir=${CI_RUN_DIR:-target/qemu-ci-$arch}
 timeout_s=${CI_TIMEOUT:-300}
 
 boot_name=$(basename "$artifact")

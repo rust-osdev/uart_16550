@@ -18,12 +18,12 @@ else
 $(error unsupported ARCH '$(ARCH)'; supported: x86_64, aarch64)
 endif
 
-TARGET_DIR := ../target/real-hw-test
+TARGET_DIR := target
 PROFILE := release
 BINARY := $(TARGET_DIR)/$(TARGET)/$(PROFILE)/uart-16550-real-hw-test.efi
 ARTIFACT := build/$(BOOT_NAME)
-BUILD := CARGO_TARGET_DIR=$(TARGET_DIR) $(CARGO) build
-CLIPPY := CARGO_TARGET_DIR=$(TARGET_DIR) $(CARGO) clippy
+BUILD := $(CARGO) build
+CLIPPY := $(CARGO) clippy
 
 .PHONY: all artifact artifacts check qemu qemu-tcg ci-qemu install clean
 

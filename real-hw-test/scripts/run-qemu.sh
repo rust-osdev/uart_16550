@@ -4,7 +4,7 @@ set -euo pipefail
 arch=${ARCH:-x86_64}
 qemu=${QEMU:-qemu-system-$arch}
 accel=${QEMU_ACCEL:-kvm}
-esp_dir=${ESP_DIR:-../target/real-hw-test/qemu-esp-$arch}
+esp_dir=${ESP_DIR:-target/qemu-esp-$arch}
 artifact=${ARTIFACT:-}
 
 if ! command -v "$qemu" >/dev/null 2>&1; then
