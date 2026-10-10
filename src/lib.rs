@@ -1085,14 +1085,6 @@ impl<B: Backend> Uart16550<B> {
     }
 }
 
-// SAFETY: `Uart16550` is not `Sync`, so concurrent access from multiple
-// threads is not possible through this type's API alone. Implementing `Send`
-// allows moving ownership to another thread, which is safe because at any
-// point only one thread holds the `&mut self` required for all operations.
-// Without this, higher-level wrappers such as `Mutex<Uart16550>` could not
-// be constructed, since `Mutex<T>: Sync` requires `T: Send`.
-unsafe impl<B: Backend> Send for Uart16550<B> {}
-
 /// A dump of all (readable) config registers of [`Uart16550`].
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct ConfigRegisterDump {

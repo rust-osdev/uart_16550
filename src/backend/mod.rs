@@ -58,7 +58,7 @@ fn assert_offset(register_offset: u8) {
 ///
 /// [`Uart16550`]: crate::Uart16550
 /// [`Uart16550::backend_mut()`]: crate::Uart16550::backend_mut
-pub trait Backend: Send + private::Sealed {
+pub trait Backend: private::Sealed {
     /// Reads one byte from the register at the given register offset.
     ///
     /// This needs a mutable reference as reads can have side effects on the

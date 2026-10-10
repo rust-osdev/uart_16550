@@ -27,6 +27,7 @@
   it is discouraged; prefer the driver's methods.
 - New `const fn` `Uart16550Tty::from_inner()` to wrap an existing device
   without re-initializing it.
+- `Backend` no longer requires `Send`. `Uart16550` is `Send` if its backend is.
 
 ## 0.8.1 - 2026-09-14
 
