@@ -31,7 +31,9 @@
 //!   machines
 //! - ✅ Fully type-safe and derived directly from the official
 //!   [specification][uart]
-//! - ✅ Supports both **x86 port-mapped I/O** and **memory-mapped I/O** (MMIO)
+//! - ✅ Supports both **x86 port-mapped I/O** and **memory-mapped I/O** (MMIO),
+//!   as well as [**custom backends**](backend) (e.g., hypercall-based I/O in
+//!   confidential VMs)
 //! - ✅ `no_std`-compatible and allocation-free by design
 //! - ✅ Compatible with all architectures supported by Rust (x86/x86_64, ARM,
 //!   RISC-V, ...)
@@ -52,8 +54,14 @@
 //!
 //! Use [`Uart16550Tty`] for a quick start to write to a terminal via your
 //! serial connection. For more fine-grained low-level control, please have a
-//! look at [`Uart16550`] instead. The following examples show usage of the
-//! latter.
+//! look at [`Uart16550`] instead.
+//!
+//! Both types are generic over a [`Backend`], which performs the register
+//! accesses: [`PioBackend`] for x86 port I/O, [`MmioBackend`] for MMIO, or your
+//! own backend for anything else, e.g., hypercall-based I/O in confidential
+//! VMs. See the [`backend`] module.
+//!
+//! The following examples show usage of [`Uart16550`].
 //!
 //! # Example (Minimal - x86 Port IO)
 //!
@@ -196,9 +204,8 @@ mod tty;
 /// All reads and writes involving device register from/to that device operate
 /// on the underlying hardware.
 ///
-/// This type is generic over x86 port I/O and MMIO via the corresponding
-/// constructors [`Uart16550::new_port()`] and [`Uart16550::new_mmio()`].
-/// The following examples show usage of the latter.
+/// This type is generic over its [`Backend`], which performs the register
+/// accesses. See the section on backends below.
 ///
 /// # Example (Minimal - x86 Port IO)
 ///
@@ -278,12 +285,20 @@ mod tty;
 ///
 /// These methods spin until completion.
 ///
-/// # MMIO and Port I/O
+/// # Backends
 ///
-/// Uart 16550 devices are typically mapped via port I/O on x86 and via MMIO on
-/// other platforms. The constructors [`Uart16550::new_port()`] and
-/// [`Uart16550::new_mmio()`] create an instance of a device with the
-/// corresponding backend.
+/// The [`Backend`] performs the register accesses. It is determined by the
+/// constructor:
+///
+/// - [`Uart16550::new_port()`]: [`PioBackend`] for x86 port I/O, which is
+///   typical on x86.
+/// - [`Uart16550::new_mmio()`] and [`Uart16550::new_mmio_from_address()`]:
+///   [`MmioBackend`] for MMIO, which is typical on other platforms.
+/// - [`Uart16550::new_with_backend()`]: your own [`Backend`], e.g., for
+///   hypercall-based I/O in confidential VMs.
+///
+/// [`Uart16550::backend()`] and [`Uart16550::backend_mut()`] give access to
+/// the backend.
 ///
 /// # Synchronous, Asynchronous, and Interrupt-driven Operation
 ///
@@ -461,6 +476,25 @@ impl Uart16550<MmioBackend> {
 }
 
 impl<B: Backend> Uart16550<B> {
+    /// Creates a new [`Uart16550`] with a custom [`Backend`].
+    ///
+    /// Use this if neither [`Self::new_port()`] nor [`Self::new_mmio()`] fit,
+    /// for example because register accesses must go through a hypervisor
+    /// interface. See the [`backend`] module for an example.
+    ///
+    /// # Safety
+    ///
+    /// Callers must ensure that the backend provides valid and safe access to
+    /// all [`NUM_REGISTERS`] registers for the **whole lifetime** of the
+    /// device.
+    pub const unsafe fn new_with_backend(backend: B) -> Self {
+        Self {
+            backend,
+            // Will be replaced by the actual config in init() afterwards.
+            config: Config::DEFAULT,
+        }
+    }
+
     /* ----- Init, Setup, Tests --------------------------------------------- */
 
     /// Checks if a device answers at the base address by checking the [`SPR`]
@@ -1084,14 +1118,6 @@ impl<B: Backend> Uart16550<B> {
         }
     }
 }
-
-// SAFETY: `Uart16550` is not `Sync`, so concurrent access from multiple
-// threads is not possible through this type's API alone. Implementing `Send`
-// allows moving ownership to another thread, which is safe because at any
-// point only one thread holds the `&mut self` required for all operations.
-// Without this, higher-level wrappers such as `Mutex<Uart16550>` could not
-// be constructed, since `Mutex<T>: Sync` requires `T: Send`.
-unsafe impl<B: Backend> Send for Uart16550<B> {}
 
 /// A dump of all (readable) config registers of [`Uart16550`].
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]

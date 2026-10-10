@@ -27,6 +27,11 @@
   it is discouraged; prefer the driver's methods.
 - New `const fn` `Uart16550Tty::from_inner()` to wrap an existing device
   without re-initializing it.
+- `Backend` no longer requires `Send`. `Uart16550` is `Send` if its backend is.
+- Custom backends: `Backend` is no longer sealed. Pass your own `Backend` to the
+  new `const fn` `Uart16550::new_with_backend()`, for example to perform port
+  I/O via `tdcall` or GHCB in confidential VMs.
+- New `Uart16550Tty::new_with_backend()`.
 
 ## 0.8.1 - 2026-09-14
 

@@ -1,10 +1,13 @@
+use core::fmt::Write;
 use core::num::NonZeroUsize;
 use core::ptr::{self, NonNull};
 use std::sync::Mutex;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use uart_16550::backend::PioBackend;
 use uart_16550::backend::{Backend, MmioBackend};
-use uart_16550::{Uart16550, Uart16550Tty};
+use uart_16550::spec::NUM_REGISTERS;
+use uart_16550::spec::registers::{LCR, LSR, offsets};
+use uart_16550::{Config, Uart16550, Uart16550Tty};
 
 /// This ensures that all necessary helper types to create bindings are publicly
 /// exported.
@@ -72,4 +75,69 @@ fn test_static_tty() {
         },
     ));
     let _ = &TTY;
+}
+
+/// A custom backend operating on an in-memory register file.
+///
+/// Reads and writes are passed through, except for the line status register,
+/// which always reports an empty transmitter. Data writes are recorded unless
+/// the divisor latch is selected.
+#[derive(Debug)]
+struct RegisterFileBackend {
+    registers: [u8; NUM_REGISTERS],
+    sent: Vec<u8>,
+}
+
+impl RegisterFileBackend {
+    const fn new() -> Self {
+        Self {
+            registers: [0; NUM_REGISTERS],
+            sent: Vec::new(),
+        }
+    }
+}
+
+impl Backend for RegisterFileBackend {
+    unsafe fn read(&mut self, register_offset: u8) -> u8 {
+        if register_offset == offsets::LSR as u8 {
+            return (LSR::THR_EMPTY | LSR::TRANSMITTER_EMPTY).bits();
+        }
+        self.registers[usize::from(register_offset)]
+    }
+
+    unsafe fn write(&mut self, register_offset: u8, value: u8) {
+        let dlab = LCR::from_bits_retain(self.registers[offsets::LCR]).contains(LCR::DLAB);
+        if register_offset == offsets::DATA as u8 && !dlab {
+            self.sent.push(value);
+        }
+        self.registers[usize::from(register_offset)] = value;
+    }
+}
+
+/// A custom backend can be used for the full device lifecycle, including a
+/// device in a `static`.
+#[test]
+fn test_custom_backend() {
+    static UART: Mutex<Uart16550<RegisterFileBackend>> =
+        // SAFETY: The backend operates on an in-memory register file.
+        Mutex::new(unsafe { Uart16550::new_with_backend(RegisterFileBackend::new()) });
+
+    let mut uart = UART.lock().unwrap();
+    uart.init(Config::default()).unwrap();
+    uart.send_bytes_exact(b"hello");
+    assert_eq!(uart.backend().sent, b"hello");
+}
+
+/// A [`Uart16550Tty`] can wrap a device in a `static` without accessing it.
+#[test]
+fn test_custom_backend_tty() {
+    static TTY: Mutex<Uart16550Tty<RegisterFileBackend>> = Mutex::new(Uart16550Tty::from_inner(
+        // SAFETY: The backend operates on an in-memory register file.
+        unsafe { Uart16550::new_with_backend(RegisterFileBackend::new()) },
+    ));
+
+    let mut tty = TTY.lock().unwrap();
+    assert!(tty.inner().backend().sent.is_empty());
+    writeln!(tty, "hello").unwrap();
+    assert_eq!(tty.inner().backend().sent, b"hello\r\n");
 }

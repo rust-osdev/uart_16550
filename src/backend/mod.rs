@@ -6,6 +6,43 @@
 //! - [`Backend`]
 //! - [`PioBackend`]
 //! - [`MmioBackend`]
+//!
+//! # Custom Backends
+//!
+//! Besides the built-in backends, you can implement [`Backend`] yourself and
+//! pass it to [`Uart16550::new_with_backend()`]. This is useful when registers
+//! can't be accessed with plain `in`/`out` instructions or volatile memory
+//! accesses, e.g., in confidential VMs (Intel TDX, AMD SEV-SNP), where port
+//! I/O goes through a `tdcall` or the GHCB protocol.
+//!
+//! ```rust,no_run
+//! use uart_16550::backend::Backend;
+//! use uart_16550::{Config, Uart16550};
+//!
+//! /// Port I/O through a hypervisor interface.
+//! struct HypercallPio {
+//!     base: u16,
+//! }
+//!
+//! # fn hypercall_io_in(_port: u16) -> u8 { 0 }
+//! # fn hypercall_io_out(_port: u16, _value: u8) {}
+//! impl Backend for HypercallPio {
+//!     unsafe fn read(&mut self, register_offset: u8) -> u8 {
+//!         hypercall_io_in(self.base + u16::from(register_offset))
+//!     }
+//!
+//!     unsafe fn write(&mut self, register_offset: u8, value: u8) {
+//!         hypercall_io_out(self.base + u16::from(register_offset), value)
+//!     }
+//! }
+//!
+//! // SAFETY: The port is valid and we have exclusive access.
+//! let mut uart = unsafe { Uart16550::new_with_backend(HypercallPio { base: 0x3f8 }) };
+//! uart.init(Config::default()).expect("should init device successfully");
+//! uart.send_bytes_exact(b"hello world!");
+//! ```
+//!
+//! [`Uart16550::new_with_backend()`]: crate::Uart16550::new_with_backend
 
 mod mmio;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64", doc))]
@@ -16,10 +53,6 @@ pub use mmio::MmioBackend;
 pub use pio::PioBackend;
 
 use crate::spec::NUM_REGISTERS;
-
-mod private {
-    pub trait Sealed {}
-}
 
 #[inline]
 #[track_caller]
@@ -58,7 +91,7 @@ fn assert_offset(register_offset: u8) {
 ///
 /// [`Uart16550`]: crate::Uart16550
 /// [`Uart16550::backend_mut()`]: crate::Uart16550::backend_mut
-pub trait Backend: Send + private::Sealed {
+pub trait Backend {
     /// Reads one byte from the register at the given register offset.
     ///
     /// This needs a mutable reference as reads can have side effects on the
