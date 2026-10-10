@@ -96,11 +96,14 @@ impl MmioBackend {
     #[inline(always)]
     fn register(&self, register_offset: u8) -> *mut u8 {
         assert_offset(register_offset);
-        // MMIO is not a Rust allocation; the constructor already rejects
-        // register ranges whose address arithmetic would wrap.
-        self.base
-            .as_ptr()
-            .wrapping_add(usize::from(register_offset) * usize::from(self.stride.get()))
+        let offset = usize::from(register_offset) * usize::from(self.stride.get());
+        let address = self
+            .base
+            .addr()
+            .get()
+            .checked_add(offset)
+            .expect("register address should not overflow, as checked by the constructor");
+        self.base.as_ptr().with_addr(address)
     }
 }
 

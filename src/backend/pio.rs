@@ -22,8 +22,9 @@ impl PioBackend {
     #[inline(always)]
     fn port(&self, register_offset: u8) -> u16 {
         assert_offset(register_offset);
-        // The constructor ensures that all registers fit into the port space.
-        self.base + u16::from(register_offset)
+        self.base
+            .checked_add(u16::from(register_offset))
+            .expect("register port should not overflow, as checked by the constructor")
     }
 }
 
