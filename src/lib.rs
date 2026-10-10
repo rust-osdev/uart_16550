@@ -365,12 +365,8 @@ impl Uart16550<PioBackend> {
         }
 
         let backend = PioBackend { base: base_port };
-
-        Ok(Self {
-            backend,
-            // Will be replaced by the actual config in init() afterwards.
-            config: Config::DEFAULT,
-        })
+        // SAFETY: The caller ensured that the port is valid.
+        Ok(unsafe { Self::new_with_backend(backend) })
     }
 }
 
@@ -395,15 +391,13 @@ impl Uart16550<MmioBackend> {
         stride: u8,
     ) -> Result<Self, InvalidAddressError> {
         Self::check_mmio(base_address.addr().get(), stride)?;
-        Ok(Self {
-            backend: MmioBackend {
-                base: base_address,
-                stride: NonZeroU8::new(stride)
-                    .expect("check_mmio() should have rejected a zero stride"),
-            },
-            // Will be replaced by the actual config in init() afterwards.
-            config: Config::DEFAULT,
-        })
+        let backend = MmioBackend {
+            base: base_address,
+            stride: NonZeroU8::new(stride)
+                .expect("check_mmio() should have rejected a zero stride"),
+        };
+        // SAFETY: The caller ensured that the address is valid.
+        Ok(unsafe { Self::new_with_backend(backend) })
     }
 
     /// Creates a new [`Uart16550`] backed by MMIO from an integer address.
@@ -446,15 +440,13 @@ impl Uart16550<MmioBackend> {
         let ptr = ptr::with_exposed_provenance_mut::<u8>(base_address.get());
         // SAFETY: The address is non-zero, so the pointer is non-null.
         let ptr = unsafe { NonNull::new_unchecked(ptr) };
-        Ok(Self {
-            backend: MmioBackend {
-                base: ptr,
-                stride: NonZeroU8::new(stride)
-                    .expect("check_mmio() should have rejected a zero stride"),
-            },
-            // Will be replaced by the actual config in init() afterwards.
-            config: Config::DEFAULT,
-        })
+        let backend = MmioBackend {
+            base: ptr,
+            stride: NonZeroU8::new(stride)
+                .expect("check_mmio() should have rejected a zero stride"),
+        };
+        // SAFETY: The caller ensured that the address is valid.
+        Ok(unsafe { Self::new_with_backend(backend) })
     }
 
     /// Checks that the stride is valid and that all registers fit into the
