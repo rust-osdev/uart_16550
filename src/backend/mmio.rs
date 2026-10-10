@@ -142,7 +142,7 @@ mod tests {
             // SAFETY: We just test the constructor but do not access the device.
             let uart = unsafe { Uart16550::new_mmio(ptr, stride) }
                 .expect("should accept the highest valid base address");
-            let backend = uart.config().1;
+            let backend = uart.backend();
             for register_offset in 0..NUM_REGISTERS as u8 {
                 assert_eq!(
                     backend.register(register_offset).addr(),

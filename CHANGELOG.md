@@ -19,6 +19,8 @@
 - **Breaking:** `RegisterAddress`, `PortIoAddress`, and `MmioAddress` are
   removed. `PioBackend::base()` returns a `u16` and `MmioBackend::base()` a
   `NonNull<u8>`.
+- **Breaking:** `Uart16550::config()` only returns the `Config`. Use the new
+  `Uart16550::backend()` to access the backend.
 
 ## 0.8.1 - 2026-09-14
 
