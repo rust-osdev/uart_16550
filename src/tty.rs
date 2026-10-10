@@ -99,11 +99,12 @@ impl Error for Uart16550TtyError {
 /// uart.write_str("hello world\nhow's it going?");
 /// ```
 ///
-/// # MMIO and Port I/O
+/// # Backends
 ///
-/// Uart 16550 devices are typically mapped via port I/O on x86 and via MMIO on
-/// other platforms. The constructors [`Uart16550Tty::new_port()`] and
-/// [`Uart16550Tty::new_mmio()`] create an instance of a device with the
+/// Like [`Uart16550`], this type is generic over a [`Backend`]. The
+/// constructors [`Uart16550Tty::new_port()`], [`Uart16550Tty::new_mmio()`],
+/// [`Uart16550Tty::new_mmio_from_address()`], and
+/// [`Uart16550Tty::new_with_backend()`] create an instance with the
 /// corresponding backend.
 ///
 /// # Hints for Usage on Real Hardware

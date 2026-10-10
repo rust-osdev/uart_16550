@@ -32,8 +32,8 @@
 //! - ✅ Fully type-safe and derived directly from the official
 //!   [specification][uart]
 //! - ✅ Supports both **x86 port-mapped I/O** and **memory-mapped I/O** (MMIO),
-//!   as well as **custom backends** (e.g., hypercall-based I/O in confidential
-//!   VMs)
+//!   as well as [**custom backends**](backend) (e.g., hypercall-based I/O in
+//!   confidential VMs)
 //! - ✅ `no_std`-compatible and allocation-free by design
 //! - ✅ Compatible with all architectures supported by Rust (x86/x86_64, ARM,
 //!   RISC-V, ...)
@@ -54,8 +54,14 @@
 //!
 //! Use [`Uart16550Tty`] for a quick start to write to a terminal via your
 //! serial connection. For more fine-grained low-level control, please have a
-//! look at [`Uart16550`] instead. The following examples show usage of the
-//! latter.
+//! look at [`Uart16550`] instead.
+//!
+//! Both types are generic over a [`Backend`], which performs the register
+//! accesses: [`PioBackend`] for x86 port I/O, [`MmioBackend`] for MMIO, or your
+//! own backend for anything else, e.g., hypercall-based I/O in confidential
+//! VMs. See the [`backend`] module.
+//!
+//! The following examples show usage of [`Uart16550`].
 //!
 //! # Example (Minimal - x86 Port IO)
 //!
@@ -198,9 +204,8 @@ mod tty;
 /// All reads and writes involving device register from/to that device operate
 /// on the underlying hardware.
 ///
-/// This type is generic over x86 port I/O and MMIO via the corresponding
-/// constructors [`Uart16550::new_port()`] and [`Uart16550::new_mmio()`].
-/// The following examples show usage of the latter.
+/// This type is generic over its [`Backend`], which performs the register
+/// accesses. See the section on backends below.
 ///
 /// # Example (Minimal - x86 Port IO)
 ///
@@ -280,12 +285,20 @@ mod tty;
 ///
 /// These methods spin until completion.
 ///
-/// # MMIO and Port I/O
+/// # Backends
 ///
-/// Uart 16550 devices are typically mapped via port I/O on x86 and via MMIO on
-/// other platforms. The constructors [`Uart16550::new_port()`] and
-/// [`Uart16550::new_mmio()`] create an instance of a device with the
-/// corresponding backend.
+/// The [`Backend`] performs the register accesses. It is determined by the
+/// constructor:
+///
+/// - [`Uart16550::new_port()`]: [`PioBackend`] for x86 port I/O, which is
+///   typical on x86.
+/// - [`Uart16550::new_mmio()`] and [`Uart16550::new_mmio_from_address()`]:
+///   [`MmioBackend`] for MMIO, which is typical on other platforms.
+/// - [`Uart16550::new_with_backend()`]: your own [`Backend`], e.g., for
+///   hypercall-based I/O in confidential VMs.
+///
+/// [`Uart16550::backend()`] and [`Uart16550::backend_mut()`] give access to
+/// the backend.
 ///
 /// # Synchronous, Asynchronous, and Interrupt-driven Operation
 ///
