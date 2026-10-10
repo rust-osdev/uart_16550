@@ -722,6 +722,10 @@ impl<B: Backend> Uart16550<B> {
         // SAFETY: We operate on valid register addresses.
         unsafe {
             self.backend.write(offsets::MCR as u8, old_mcr.bits());
+            // Entering and leaving loopback mode changes the modem lines.
+            // Clear the resulting deltas, which would otherwise raise a
+            // spurious modem status interrupt.
+            let _ = self.backend.read(offsets::MSR as u8);
         }
 
         result
