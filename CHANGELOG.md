@@ -59,6 +59,8 @@
   e.g., for interrupt-driven transmission.
 - Fixed: `test_loopback()` no longer spins forever without FIFO.
 - Fixed: `test_loopback()` no longer leaves modem status changes behind.
+- Fixed: `test_loopback()` disables interrupts during the test and lets a
+  running transmission finish first.
 
 ## 0.8.1 - 2026-09-14
 

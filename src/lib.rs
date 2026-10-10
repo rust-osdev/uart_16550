@@ -707,9 +707,24 @@ impl<B: Backend> Uart16550<B> {
     // NEVER CHANGE this function without testing on real hardware!
     pub fn test_loopback(&mut self) -> Result<(), LoopbackError> {
         let old_mcr = self.mcr();
+        let old_ier = self.ier();
+
+        // Let a running transmission finish, so it isn't cut off or looped
+        // back.
+        while !self.read_lsr().contains(LSR::TRANSMITTER_EMPTY) {
+            hint::spin_loop();
+        }
+        // Errors caused by the test itself are no news for the caller.
+        let old_lsr_saved = self.lsr_saved;
         let old_msr = self.read_msr();
 
-        // We also disable interrupts here.
+        // Disable interrupts, so that no interrupt handler takes the
+        // looped-back data.
+        // SAFETY: We operate on valid register addresses.
+        unsafe {
+            self.backend.write(offsets::IER as u8, 0);
+        }
+
         // SAFETY: We operate on valid register addresses.
         unsafe {
             self.backend
@@ -732,6 +747,12 @@ impl<B: Backend> Uart16550<B> {
             self.backend.write(offsets::MCR as u8, old_mcr.bits());
             self.msr_saved |= Self::modem_line_changes(old_msr, msr);
         }
+
+        // SAFETY: We operate on valid register addresses.
+        unsafe {
+            self.backend.write(offsets::IER as u8, old_ier.bits());
+        }
+        self.lsr_saved = old_lsr_saved;
 
         result
     }
