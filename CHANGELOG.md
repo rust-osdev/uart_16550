@@ -57,6 +57,7 @@
   addition to the current register value.
 - New `Uart16550::enable_interrupts()` and `Uart16550::disable_interrupts()`,
   e.g., for interrupt-driven transmission.
+- Fixed: `test_loopback()` no longer spins forever without FIFO.
 
 ## 0.8.1 - 2026-09-14
 

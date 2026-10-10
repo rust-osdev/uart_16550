@@ -703,7 +703,7 @@ impl<B: Backend> Uart16550<B> {
     ///
     /// - No other data **must** be send over the device while this test isn't
     ///   finished
-    /// - The FIFO will be re-configured and activated by this test.
+    /// - The FIFO will be re-configured by this test.
     // NEVER CHANGE this function without testing on real hardware!
     pub fn test_loopback(&mut self) -> Result<(), LoopbackError> {
         let old_mcr = self.mcr();
@@ -763,15 +763,21 @@ impl<B: Backend> Uart16550<B> {
         }
 
         // Now check sending and reading a whole message.
-        // This requires the FIFO to be activated.
         {
-            self.send_bytes_exact(&TEST_MESSAGE);
-
             let mut read_buffer = [0_u8; TEST_MESSAGE.len()];
             // Tests on real hardware showed that there can be a short delay
             // until we can read the data. Therefore, we use the blocking
             // API rather than `receive_bytes()`.
-            self.receive_bytes_exact(&mut read_buffer);
+            if self.fifo_enabled {
+                self.send_bytes_exact(&TEST_MESSAGE);
+                self.receive_bytes_exact(&mut read_buffer);
+            } else {
+                // Without FIFO, the receiver holds only one byte.
+                for (byte, read) in TEST_MESSAGE.iter().zip(&mut read_buffer) {
+                    self.send_bytes_exact(core::slice::from_ref(byte));
+                    self.receive_bytes_exact(core::slice::from_mut(read));
+                }
+            }
 
             if read_buffer != TEST_MESSAGE {
                 return Err(LoopbackError::UnexpectedLoopbackMsg {
