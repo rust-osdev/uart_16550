@@ -117,11 +117,11 @@ impl MmioBackend {
         self.stride
     }
 
-    /// Returns the address of the register at the given offset.
+    /// Returns the address of the register at the given register offset.
     #[inline(always)]
-    fn register(&self, offset: u8) -> MmioAddress {
-        assert_offset(offset);
-        let address_offset = offset
+    fn register(&self, register_offset: u8) -> MmioAddress {
+        assert_offset(register_offset);
+        let address_offset = register_offset
             .checked_mul(u8::from(self.stride))
             .expect("offset * stride overflows u8; reduce stride");
         self.base_address.add_offset(address_offset)
@@ -130,15 +130,15 @@ impl MmioBackend {
 
 impl Backend for MmioBackend {
     #[inline(always)]
-    unsafe fn read(&mut self, offset: u8) -> u8 {
-        let address = self.register(offset);
+    unsafe fn read(&mut self, register_offset: u8) -> u8 {
+        let address = self.register(register_offset);
         // SAFETY: The constructor ensured that the MMIO address is safe to use.
         unsafe { arch::mmio_read_register(address) }
     }
 
     #[inline(always)]
-    unsafe fn write(&mut self, offset: u8, value: u8) {
-        let address = self.register(offset);
+    unsafe fn write(&mut self, register_offset: u8, value: u8) {
+        let address = self.register(register_offset);
         // SAFETY: The constructor ensured that the MMIO address is safe to use.
         unsafe { arch::mmio_write_register(address, value) }
     }

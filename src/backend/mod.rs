@@ -37,10 +37,10 @@ pub trait RegisterAddress: Copy + Clone + Debug + Sized + private::Sealed {
 
 #[inline]
 #[track_caller]
-fn assert_offset(offset: u8) {
+fn assert_offset(register_offset: u8) {
     assert!(
-        offset < NUM_REGISTERS as u8,
-        "the offset should be within the expected range: expected {offset} to be less than {NUM_REGISTERS}",
+        register_offset < NUM_REGISTERS as u8,
+        "the register offset should be within the expected range: expected {register_offset} to be less than {NUM_REGISTERS}",
     );
 }
 
@@ -48,33 +48,40 @@ fn assert_offset(offset: u8) {
 ///
 /// This acts as Hardware Abstraction Layer (HAL) and abstracts over x86 port
 /// I/O and generic MMIO.
+///
+/// Registers are identified by their logical register offset, i.e., their
+/// index from `0` to `NUM_REGISTERS - 1`. It doesn't depend on how the
+/// registers are laid out in the address space: applying a stride, for
+/// example, is up to the backend.
 pub trait Backend: Send + private::Sealed {
-    /// Reads one byte from the specified register at the given offset.
+    /// Reads one byte from the register at the given register offset.
     ///
     /// This needs a mutable reference as reads can have side effects on the
     /// device, depending on the register.
     ///
     /// # Arguments
     ///
-    /// - `offset`: The register offset regarding the base register. The offset
-    ///   **must** be less than [`NUM_REGISTERS`].
+    /// - `register_offset`: The logical register offset, without any stride
+    ///   applied. See [`Backend`].
     ///
     /// # Safety
     ///
-    /// Callers must ensure that `offset` is less than [`NUM_REGISTERS`].
-    unsafe fn read(&mut self, offset: u8) -> u8;
+    /// Callers must ensure that `register_offset` is less than
+    /// [`NUM_REGISTERS`].
+    unsafe fn read(&mut self, register_offset: u8) -> u8;
 
-    /// Writes one byte to the specified register at the given offset.
+    /// Writes one byte to the register at the given register offset.
     ///
     /// Writes can have side effects on the device, depending on the register.
     ///
     /// # Arguments
     ///
-    /// - `offset`: The register offset regarding the base register. The offset
-    ///   **must** be less than [`NUM_REGISTERS`].
+    /// - `register_offset`: The logical register offset, without any stride
+    ///   applied. See [`Backend`].
     ///
     /// # Safety
     ///
-    /// Callers must ensure that `offset` is less than [`NUM_REGISTERS`].
-    unsafe fn write(&mut self, offset: u8, value: u8);
+    /// Callers must ensure that `register_offset` is less than
+    /// [`NUM_REGISTERS`].
+    unsafe fn write(&mut self, register_offset: u8, value: u8);
 }

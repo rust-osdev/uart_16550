@@ -32,18 +32,18 @@ impl PioBackend {
         self.0
     }
 
-    /// Returns the port of the register at the given offset.
+    /// Returns the port of the register at the given register offset.
     #[inline(always)]
-    fn port(&self, offset: u8) -> PortIoAddress {
-        assert_offset(offset);
-        self.0.add_offset(offset)
+    fn port(&self, register_offset: u8) -> PortIoAddress {
+        assert_offset(register_offset);
+        self.0.add_offset(register_offset)
     }
 }
 
 impl Backend for PioBackend {
     #[inline(always)]
-    unsafe fn read(&mut self, offset: u8) -> u8 {
-        let port = self.port(offset);
+    unsafe fn read(&mut self, register_offset: u8) -> u8 {
+        let port = self.port(register_offset);
         // SAFETY: The constructor ensured that the I/O port is safe to use.
         unsafe {
             let ret: u8;
@@ -58,8 +58,8 @@ impl Backend for PioBackend {
     }
 
     #[inline(always)]
-    unsafe fn write(&mut self, offset: u8, value: u8) {
-        let port = self.port(offset);
+    unsafe fn write(&mut self, register_offset: u8, value: u8) {
+        let port = self.port(register_offset);
         // SAFETY: The constructor ensured that the I/O port is safe to use.
         unsafe {
             asm!(
