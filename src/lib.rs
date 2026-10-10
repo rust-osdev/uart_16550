@@ -538,6 +538,14 @@ impl<B: Backend> Uart16550<B> {
     /// Further, the serial config must match the expectations of the receiver
     /// on the other side. Otherwise, garbage will be received.
     pub fn init(&mut self, config: Config) -> Result<(), InitError> {
+        // Validate the config before touching the device.
+        let divisor = calc_divisor(
+            config.frequency,
+            config.baud_rate.to_integer(),
+            config.prescaler_division_factor,
+        )
+        .map_err(InitError::InvalidBaudRate)?;
+
         // It is important to set this early as some helpers rely on that.
         self.config = config;
 
@@ -562,13 +570,6 @@ impl<B: Backend> Uart16550<B> {
         unsafe {
             // Set Divisor Latch Access Bit (DLAB) to access DLL and DLM next
             self.backend.write(offsets::LCR as u8, LCR::DLAB.bits());
-
-            let divisor = calc_divisor(
-                self.config.frequency,
-                self.config.baud_rate.to_integer(),
-                self.config.prescaler_division_factor,
-            )
-            .map_err(InitError::InvalidBaudRate)?;
 
             let low = (divisor & 0xff) as u8;
             let high = ((divisor >> 8) & 0xff) as u8;

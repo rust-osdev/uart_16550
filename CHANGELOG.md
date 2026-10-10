@@ -32,6 +32,7 @@
   new `const fn` `Uart16550::new_with_backend()`, for example to perform port
   I/O via `tdcall` or GHCB in confidential VMs.
 - New `Uart16550Tty::new_with_backend()`.
+- Fixed: `init()` no longer leaves DLAB set if the baud rate is invalid.
 
 ## 0.8.1 - 2026-09-14
 
