@@ -707,6 +707,7 @@ impl<B: Backend> Uart16550<B> {
     // NEVER CHANGE this function without testing on real hardware!
     pub fn test_loopback(&mut self) -> Result<(), LoopbackError> {
         let old_mcr = self.mcr();
+        let old_msr = self.read_msr();
 
         // We also disable interrupts here.
         // SAFETY: We operate on valid register addresses.
@@ -721,14 +722,39 @@ impl<B: Backend> Uart16550<B> {
         // mode.
         // SAFETY: We operate on valid register addresses.
         unsafe {
-            self.backend.write(offsets::MCR as u8, old_mcr.bits());
             // Entering and leaving loopback mode changes the modem lines.
-            // Clear the resulting deltas, which would otherwise raise a
-            // spurious modem status interrupt.
-            let _ = self.backend.read(offsets::MSR as u8);
+            // Clear the resulting change indicators, which would otherwise
+            // raise a spurious modem status interrupt. Keep OUT2 cleared
+            // meanwhile, so this doesn't briefly assert the IRQ line.
+            let mcr = old_mcr - MCR::OUT_2_INT_ENABLE;
+            self.backend.write(offsets::MCR as u8, mcr.bits());
+            let msr = MSR::from_bits_retain(self.backend.read(offsets::MSR as u8));
+            self.backend.write(offsets::MCR as u8, old_mcr.bits());
+            self.msr_saved |= Self::modem_line_changes(old_msr, msr);
         }
 
         result
+    }
+
+    /// Returns the change indicators for the modem lines that changed from
+    /// `old` to `new`.
+    fn modem_line_changes(old: MSR, new: MSR) -> MSR {
+        let changed = old ^ new;
+        let mut changes = MSR::empty();
+        if changed.contains(MSR::CTS) {
+            changes |= MSR::DELTA_CTS;
+        }
+        if changed.contains(MSR::DSR) {
+            changes |= MSR::DELTA_DSR;
+        }
+        if changed.contains(MSR::CD) {
+            changes |= MSR::DELTA_CD;
+        }
+        // Only the trailing edge of RI is reported.
+        if changed.contains(MSR::RI) && !new.contains(MSR::RI) {
+            changes |= MSR::TRAILING_EDGE_RI;
+        }
+        changes
     }
 
     /// The part of [`Self::test_loopback`] that runs in loopback mode.
