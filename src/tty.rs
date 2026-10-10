@@ -135,13 +135,9 @@ impl Uart16550Tty<PioBackend> {
     /// [`NUM_REGISTERS`]: crate::spec::NUM_REGISTERS
     pub unsafe fn new_port(base_port: u16, config: Config) -> Result<Self, Uart16550TtyError> {
         // SAFETY: The address is valid and we have exclusive access.
-        let mut inner =
+        let inner =
             unsafe { Uart16550::new_port(base_port).map_err(Uart16550TtyError::AddressError)? };
-        inner.init(config).map_err(Uart16550TtyError::InitError)?;
-        inner
-            .test_loopback()
-            .map_err(Uart16550TtyError::TestError)?;
-        Ok(Self(inner))
+        Self::init_and_test(inner, config)
     }
 }
 
@@ -171,19 +167,23 @@ impl Uart16550Tty<MmioBackend> {
         config: Config,
     ) -> Result<Self, Uart16550TtyError> {
         // SAFETY: The address is valid and we have exclusive access.
-        let mut inner = unsafe {
+        let inner = unsafe {
             Uart16550::new_mmio(base_address, stride).map_err(Uart16550TtyError::AddressError)?
         };
+        Self::init_and_test(inner, config)
+    }
+}
 
+impl<B: Backend> Uart16550Tty<B> {
+    /// Initializes and tests the device, and wraps it.
+    fn init_and_test(mut inner: Uart16550<B>, config: Config) -> Result<Self, Uart16550TtyError> {
         inner.init(config).map_err(Uart16550TtyError::InitError)?;
         inner
             .test_loopback()
             .map_err(Uart16550TtyError::TestError)?;
         Ok(Self(inner))
     }
-}
 
-impl<B: Backend> Uart16550Tty<B> {
     /// Returns a reference to the underlying [`Uart16550`].
     pub const fn inner(&self) -> &Uart16550<B> {
         &self.0
