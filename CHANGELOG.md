@@ -8,6 +8,9 @@
   as `usize`.
 - `Uart16550::new_port()` is now a `const fn`, so devices can be placed in a
   `static`.
+- New `const fn` `Uart16550::new_mmio_from_address()`: like `new_mmio()`, but
+  takes the base address as `NonZeroUsize`, so MMIO devices can be placed in a
+  `static` too.
 
 ## 0.8.1 - 2026-09-14
 

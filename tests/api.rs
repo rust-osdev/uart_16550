@@ -1,3 +1,4 @@
+use core::num::NonZeroUsize;
 use core::ptr::{self, NonNull};
 use std::sync::Mutex;
 use uart_16550::Uart16550;
@@ -37,6 +38,21 @@ fn test_static_port() {
         match unsafe { Uart16550::new_port(0x3f8) } {
             Ok(uart) => uart,
             Err(_) => panic!("should be a valid port"),
+        },
+    );
+    let _ = &UART;
+}
+
+/// An MMIO device can be placed in a `static`.
+///
+/// This test succeeds if it compiles.
+#[test]
+fn test_static_mmio() {
+    static UART: Mutex<Uart16550<MmioBackend>> = Mutex::new(
+        // SAFETY: This is a synthetic example and the hardware is not accessed.
+        match unsafe { Uart16550::new_mmio_from_address(NonZeroUsize::new(0x1000).unwrap(), 4) } {
+            Ok(uart) => uart,
+            Err(_) => panic!("should be a valid address"),
         },
     );
     let _ = &UART;
