@@ -1,10 +1,16 @@
 name: Build
 
-on: [  pull_request, merge_group ]
+on:
+  pull_request:
+  merge_group:
+  # Caches saved here are visible to all PRs; PR caches are not shared.
+  push:
+    branches: [ main ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  # Keep a result for every commit on main.
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -56,9 +62,7 @@ jobs:
           toolchain: stable
       - uses: Swatinem/rust-cache@v2
         with:
-          key: "integration-test"
-          cache-directories:
-            ./test/target
+          workspaces: test
       - name: Install QEMU
         run: |
           sudo apt-get update
@@ -73,9 +77,6 @@ jobs:
 
   miri:
     runs-on: ubuntu-latest
-    needs:
-      # Logical dependency and wait for cache to be present
-      - build
     strategy:
       matrix:
         rust:
