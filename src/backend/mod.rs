@@ -36,6 +36,7 @@ pub trait RegisterAddress: Copy + Clone + Debug + Sized + private::Sealed {
     fn add_offset(self, offset: u8) -> Self;
 }
 
+#[inline]
 #[track_caller]
 fn assert_offset(offset: u8) {
     assert!(
