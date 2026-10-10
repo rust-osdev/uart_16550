@@ -1,6 +1,6 @@
 //! x86 Port IO backend implementation.
 
-use super::{Backend, assert_offset, private};
+use super::{Backend, assert_offset};
 use core::arch::asm;
 
 /// x86 Port I/O backed UART 16550.
@@ -8,8 +8,6 @@ use core::arch::asm;
 pub struct PioBackend {
     pub(crate) base: u16,
 }
-
-impl private::Sealed for PioBackend {}
 
 impl PioBackend {
     /// Returns the base port.

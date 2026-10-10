@@ -1,6 +1,6 @@
 //! MMIO backend implementation.
 
-use super::{Backend, assert_offset, private};
+use super::{Backend, assert_offset};
 use core::num::NonZeroU8;
 use core::ptr::NonNull;
 
@@ -76,8 +76,6 @@ pub struct MmioBackend {
 // Without this, higher-level wrappers such as `Mutex<Uart16550>` could not
 // be constructed, since `Mutex<T>: Sync` requires `T: Send`.
 unsafe impl Send for MmioBackend {}
-
-impl private::Sealed for MmioBackend {}
 
 impl MmioBackend {
     /// Returns the base address.

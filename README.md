@@ -27,7 +27,8 @@ learning projects. See [`Uart16550`] to get started.
   machines
 - ✅ Fully type-safe and derived directly from the official
   [specification][uart]
-- ✅ Supports both **x86 port-mapped I/O** and **memory-mapped I/O** (MMIO)
+- ✅ Supports both **x86 port-mapped I/O** and **memory-mapped I/O** (MMIO),
+  as well as **custom backends** (e.g., hypercall-based I/O in confidential VMs)
 - ✅ `no_std`-compatible and allocation-free by design
 - ✅ Compatible with all architectures supported by Rust (x86/x86_64, ARM,
     RISC-V, ...)

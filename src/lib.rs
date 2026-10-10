@@ -31,7 +31,9 @@
 //!   machines
 //! - ✅ Fully type-safe and derived directly from the official
 //!   [specification][uart]
-//! - ✅ Supports both **x86 port-mapped I/O** and **memory-mapped I/O** (MMIO)
+//! - ✅ Supports both **x86 port-mapped I/O** and **memory-mapped I/O** (MMIO),
+//!   as well as **custom backends** (e.g., hypercall-based I/O in confidential
+//!   VMs)
 //! - ✅ `no_std`-compatible and allocation-free by design
 //! - ✅ Compatible with all architectures supported by Rust (x86/x86_64, ARM,
 //!   RISC-V, ...)
@@ -461,6 +463,25 @@ impl Uart16550<MmioBackend> {
 }
 
 impl<B: Backend> Uart16550<B> {
+    /// Creates a new [`Uart16550`] with a custom [`Backend`].
+    ///
+    /// Use this if neither [`Self::new_port()`] nor [`Self::new_mmio()`] fit,
+    /// for example because register accesses must go through a hypervisor
+    /// interface. See the [`backend`] module for an example.
+    ///
+    /// # Safety
+    ///
+    /// Callers must ensure that the backend provides valid and safe access to
+    /// all [`NUM_REGISTERS`] registers for the **whole lifetime** of the
+    /// device.
+    pub const unsafe fn new_with_backend(backend: B) -> Self {
+        Self {
+            backend,
+            // Will be replaced by the actual config in init() afterwards.
+            config: Config::DEFAULT,
+        }
+    }
+
     /* ----- Init, Setup, Tests --------------------------------------------- */
 
     /// Checks if a device answers at the base address by checking the [`SPR`]
