@@ -77,6 +77,43 @@ mod errors {
     }
 
     impl Error for NonIntegerDivisorError {}
+
+    /// Error that is returned when [`calc_divisor`] can't calculate a valid
+    /// divisor.
+    ///
+    /// [`calc_divisor`]: crate::spec::calc_divisor
+    #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Hash)]
+    #[non_exhaustive]
+    pub enum InvalidDivisorError {
+        /// The baud rate doesn't result in an integer divisor.
+        NonInteger(NonIntegerDivisorError),
+        /// The divisor is outside of the range of the 16-bit divisor latch,
+        /// `1..=65535`, e.g., because the baud rate is too low.
+        OutOfRange {
+            /// The divisor that is out of range.
+            divisor: u32,
+        },
+    }
+
+    impl Display for InvalidDivisorError {
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::NonInteger(e) => write!(f, "{e}"),
+                Self::OutOfRange { divisor } => {
+                    write!(f, "divisor {divisor} is out of range (1..=65535)")
+                }
+            }
+        }
+    }
+
+    impl Error for InvalidDivisorError {
+        fn source(&self) -> Option<&(dyn Error + 'static)> {
+            match self {
+                Self::NonInteger(e) => Some(e),
+                Self::OutOfRange { .. } => None,
+            }
+        }
+    }
 }
 
 /// Calculates the baud rate from the frequency.
@@ -138,7 +175,7 @@ pub fn calc_divisor(
     frequency: u32,
     baud_rate: u32,
     prescaler_division_factor: Option<u32>,
-) -> Result<u16, NonIntegerDivisorError> {
+) -> Result<u16, InvalidDivisorError> {
     debug_assert_ne!(frequency, 0, "frequency must be non-zero");
     debug_assert_ne!(baud_rate, 0, "baud_rate must be non-zero");
     debug_assert!(
@@ -152,14 +189,17 @@ pub fn calc_divisor(
     // with different parameters.
     //
     // We have good unit test coverage to check that this is indeed the case.
-    calc_baud_rate(frequency, baud_rate, prescaler_division_factor)
-        .map_err(|e| NonIntegerDivisorError {
+    let divisor = calc_baud_rate(frequency, baud_rate, prescaler_division_factor).map_err(|e| {
+        InvalidDivisorError::NonInteger(NonIntegerDivisorError {
             frequency: e.frequency,
             prescaler_division_factor: e.prescaler_division_factor,
             baud_rate,
         })
-        // Unlikely but better be safe with an explicit panic.
-        .map(|val| u16::try_from(val).unwrap())
+    })?;
+    match u16::try_from(divisor) {
+        Ok(divisor) if divisor != 0 => Ok(divisor),
+        _ => Err(InvalidDivisorError::OutOfRange { divisor }),
+    }
 }
 
 /// Exposes low-level information about the on-chip register layout and provides
@@ -1208,15 +1248,19 @@ mod tests {
         assert_eq!(calc_divisor(CLK_FREQUENCY_HZ, 7200, None,), Ok(16));
         assert_eq!(
             calc_divisor(CLK_FREQUENCY_HZ, 7211, None),
-            Err(NonIntegerDivisorError {
+            Err(InvalidDivisorError::NonInteger(NonIntegerDivisorError {
                 frequency: CLK_FREQUENCY_HZ,
                 baud_rate: 7211,
                 prescaler_division_factor: None,
-            })
+            }))
+        );
+        assert_eq!(
+            calc_divisor(CLK_FREQUENCY_HZ, 1, None),
+            Err(InvalidDivisorError::OutOfRange { divisor: 115200 })
         );
         assert!(matches!(
             calc_divisor(CLK_FREQUENCY_HZ, u32::MAX, Some(0xf)),
-            Err(NonIntegerDivisorError { .. })
+            Err(InvalidDivisorError::NonInteger(_))
         ));
     }
 
