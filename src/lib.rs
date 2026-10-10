@@ -419,7 +419,8 @@ impl Uart16550<MmioBackend> {
     ///
     /// # Arguments
     ///
-    /// See [`Self::new_mmio()`].
+    /// See [`Self::new_mmio()`], with the exception that `base_address` is an
+    /// integer instead of a pointer.
     ///
     /// # Safety
     ///
