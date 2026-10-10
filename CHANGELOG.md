@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `Uart16550::new_port()` is now a `const fn`, so devices can be placed in a
+  `static`.
+
 ## 0.8.1 - 2026-09-14
 
 - New public method `Uart16550::check_present()`: probes for a device through

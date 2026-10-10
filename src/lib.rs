@@ -314,12 +314,39 @@ impl Uart16550<PioBackend> {
     ///
     /// - `base_address`: Base address of the UART.
     ///
+    /// This is a `const fn`, so the device can be placed in a `static`:
+    ///
+    #[cfg_attr(
+        any(target_arch = "x86", target_arch = "x86_64"),
+        doc = "```rust,no_run"
+    )]
+    #[cfg_attr(
+        not(any(target_arch = "x86", target_arch = "x86_64")),
+        doc = "```rust,ignore"
+    )]
+    /// use uart_16550::Uart16550;
+    /// use uart_16550::backend::PioBackend;
+    ///
+    /// const fn com1() -> Uart16550<PioBackend> {
+    ///     // SAFETY: The port is valid and we have exclusive access.
+    ///     // `Result::unwrap()` is not usable in const contexts.
+    ///     match unsafe { Uart16550::new_port(0x3f8) } {
+    ///         Ok(uart) => uart,
+    ///         Err(_) => panic!("should be a valid port"),
+    ///     }
+    /// }
+    ///
+    /// static COM1: std::sync::Mutex<Uart16550<PioBackend>> = std::sync::Mutex::new(com1());
+    /// ```
+    ///
     /// # Safety
     ///
     /// Callers must ensure that the base port is valid and safe to use for the
     /// **whole lifetime** of the device. Further, all [`NUM_REGISTERS`]
     /// registers must be safely reachable from the base address.
-    pub unsafe fn new_port(base_port: u16) -> Result<Self, InvalidAddressError<PortIoAddress>> {
+    pub const unsafe fn new_port(
+        base_port: u16,
+    ) -> Result<Self, InvalidAddressError<PortIoAddress>> {
         let base_address = PortIoAddress(base_port);
         if base_port.checked_add(NUM_REGISTERS as u16 - 1).is_none() {
             return Err(InvalidAddressError::InvalidBaseAddress(base_address));
@@ -330,7 +357,7 @@ impl Uart16550<PioBackend> {
         Ok(Self {
             backend,
             // Will be replaced by the actual config in init() afterwards.
-            config: Config::default(),
+            config: Config::DEFAULT,
         })
     }
 }

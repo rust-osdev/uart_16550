@@ -1,4 +1,5 @@
 use core::ptr::{self, NonNull};
+use std::sync::Mutex;
 use uart_16550::Uart16550;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use uart_16550::backend::PioBackend;
@@ -23,4 +24,20 @@ fn test_public_api() {
     // SAFETY: This is a synthetic example and the hardware is not accessed.
     let device: Uart16550<MmioBackend> = unsafe { Uart16550::new_mmio(mmio_address, 1) }.unwrap();
     consume(device);
+}
+
+/// A port I/O device can be placed in a `static`.
+///
+/// This test succeeds if it compiles.
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[test]
+fn test_static_port() {
+    static UART: Mutex<Uart16550<PioBackend>> = Mutex::new(
+        // SAFETY: This is a synthetic example and the hardware is not accessed.
+        match unsafe { Uart16550::new_port(0x3f8) } {
+            Ok(uart) => uart,
+            Err(_) => panic!("should be a valid port"),
+        },
+    );
+    let _ = &UART;
 }
