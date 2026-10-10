@@ -41,6 +41,7 @@
 - **Breaking:** `calc_divisor()` reports divisors that don't fit into the 16-bit
   divisor latch instead of panicking. It and `InitError::InvalidBaudRate` now
   use the new `InvalidDivisorError`.
+- **Breaking:** `InitError` is `#[non_exhaustive]`.
 
 ## 0.8.1 - 2026-09-14
 

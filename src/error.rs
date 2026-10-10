@@ -105,6 +105,7 @@ impl Error for LoopbackError {
 /// Errors that can happen when a [`Uart16550`] initialized in
 /// [`Uart16550::init`].
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum InitError {
     /// The device could not be detected.
     DeviceNotPresent,
