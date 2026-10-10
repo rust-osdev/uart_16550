@@ -1,6 +1,6 @@
 //! MMIO backend implementation.
 
-use super::{Backend, RegisterAddress, private};
+use super::{Backend, RegisterAddress, assert_offset, private};
 use crate::spec::NUM_REGISTERS;
 use core::num::NonZeroU8;
 use core::ptr::NonNull;
@@ -105,8 +105,34 @@ pub struct MmioBackend {
 
 impl private::Sealed for MmioBackend {}
 
+impl MmioBackend {
+    /// Returns the address of the register at the given offset.
+    #[inline(always)]
+    fn register(&self, offset: u8) -> MmioAddress {
+        assert_offset(offset);
+        let address_offset = offset
+            .checked_mul(u8::from(self.stride))
+            .expect("offset * stride overflows u8; reduce stride");
+        self.base_address.add_offset(address_offset)
+    }
+}
+
 impl Backend for MmioBackend {
     type Address = MmioAddress;
+
+    #[inline(always)]
+    unsafe fn read(&mut self, offset: u8) -> u8 {
+        let address = self.register(offset);
+        // SAFETY: The caller ensured that the MMIO address is safe to use.
+        unsafe { self._read_register(address) }
+    }
+
+    #[inline(always)]
+    unsafe fn write(&mut self, offset: u8, value: u8) {
+        let address = self.register(offset);
+        // SAFETY: The caller ensured that the MMIO address is safe to use.
+        unsafe { self._write_register(address, value) }
+    }
 
     #[inline(always)]
     fn base(&self) -> Self::Address {

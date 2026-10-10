@@ -1,6 +1,6 @@
 //! x86 Port IO backend implementation.
 
-use super::{Backend, RegisterAddress, private};
+use super::{Backend, RegisterAddress, assert_offset, private};
 use crate::spec::NUM_REGISTERS;
 use core::arch::asm;
 use core::num::NonZeroU8;
@@ -27,8 +27,31 @@ pub struct PioBackend(pub(crate) PortIoAddress /* base port */);
 
 impl private::Sealed for PioBackend {}
 
+impl PioBackend {
+    /// Returns the port of the register at the given offset.
+    #[inline(always)]
+    fn port(&self, offset: u8) -> PortIoAddress {
+        assert_offset(offset);
+        self.0.add_offset(offset)
+    }
+}
+
 impl Backend for PioBackend {
     type Address = PortIoAddress;
+
+    #[inline(always)]
+    unsafe fn read(&mut self, offset: u8) -> u8 {
+        let port = self.port(offset);
+        // SAFETY: The caller ensured that the I/O port is safe to use.
+        unsafe { self._read_register(port) }
+    }
+
+    #[inline(always)]
+    unsafe fn write(&mut self, offset: u8, value: u8) {
+        let port = self.port(offset);
+        // SAFETY: The caller ensured that the I/O port is safe to use.
+        unsafe { self._write_register(port, value) }
+    }
 
     #[inline(always)]
     fn base(&self) -> Self::Address {

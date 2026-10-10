@@ -55,8 +55,6 @@ pub trait Backend: Send + private::Sealed {
     /// The [`RegisterAddress`] that naturally belongs to the [`Backend`].
     type Address: RegisterAddress;
 
-    /* convenience with default impl */
-
     /// Reads one byte from the specified register at the given offset.
     ///
     /// This needs a mutable reference as reads can have side effects on the
@@ -71,16 +69,7 @@ pub trait Backend: Send + private::Sealed {
     ///
     /// Callers must ensure that the effective address consisting of
     /// [`Self::base`] and `offset` is valid and safe to read.
-    #[inline(always)]
-    unsafe fn read(&mut self, offset: u8) -> u8 {
-        assert_offset(offset);
-        let address_offset = offset
-            .checked_mul(u8::from(self.stride()))
-            .expect("offset * stride overflows u8; reduce stride");
-        let addr = self.base().add_offset(address_offset);
-        // SAFETY: The caller ensured that the register address is safe to use.
-        unsafe { self._read_register(addr) }
-    }
+    unsafe fn read(&mut self, offset: u8) -> u8;
 
     /// Writes one byte to the specified register at the given offset.
     ///
@@ -95,16 +84,7 @@ pub trait Backend: Send + private::Sealed {
     ///
     /// Callers must ensure that the effective address consisting of
     /// [`Self::base`] and `offset` is valid and safe to write.
-    #[inline(always)]
-    unsafe fn write(&mut self, offset: u8, value: u8) {
-        assert_offset(offset);
-        let address_offset = offset
-            .checked_mul(u8::from(self.stride()))
-            .expect("offset * stride overflows u8; reduce stride");
-        let addr = self.base().add_offset(address_offset);
-        // SAFETY: The caller ensured that the register address is safe to use.
-        unsafe { self._write_register(addr, value) }
-    }
+    unsafe fn write(&mut self, offset: u8, value: u8);
 
     /* needs impl */
 
