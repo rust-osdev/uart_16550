@@ -314,7 +314,7 @@ impl Uart16550<PioBackend> {
     ///
     /// - `base_address`: Base address of the UART.
     ///
-    /// This is a `const fn`, so the device can be placed in a `static`:
+    /// # Example
     ///
     #[cfg_attr(
         any(target_arch = "x86", target_arch = "x86_64"),
@@ -362,8 +362,6 @@ impl Uart16550<PioBackend> {
 impl Uart16550<MmioBackend> {
     /// Creates a new [`Uart16550`] backed by MMIO.
     ///
-    /// See [`Self::new_mmio_from_address()`] for a `const` variant.
-    ///
     /// # Arguments
     ///
     /// - `base_address`: Base address of the UART.
@@ -395,9 +393,7 @@ impl Uart16550<MmioBackend> {
 
     /// Creates a new [`Uart16550`] backed by MMIO from an integer address.
     ///
-    /// Unlike [`Self::new_mmio()`], this is a `const fn`, so the device can be
-    /// placed in a `static`. The pointer is created with
-    /// [`ptr::with_exposed_provenance_mut()`].
+    /// The pointer is created with [`ptr::with_exposed_provenance_mut()`].
     ///
     /// ```rust,no_run
     /// use core::num::NonZeroUsize;
