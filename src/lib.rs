@@ -492,13 +492,20 @@ impl<B: Backend> Uart16550<B> {
     /// Checks if a device answers at the base address by checking the [`SPR`]
     /// register.
     pub fn check_present(&mut self) -> bool {
-        [0x42, 0x73].into_iter().all(|pattern| {
+        // Others may use the scratch register, so restore it.
+        let old_spr = self.spr();
+        let present = [0x42, 0x73].into_iter().all(|pattern| {
             // SAFETY: We operate on valid register addresses.
             unsafe {
                 self.backend.write(offsets::SPR as u8, pattern);
                 self.backend.read(offsets::SPR as u8) == pattern
             }
-        })
+        });
+        // SAFETY: We operate on valid register addresses.
+        unsafe {
+            self.backend.write(offsets::SPR as u8, old_spr);
+        }
+        present
     }
 
     /// Initializes the devices according to the provided [`Config`] including a
