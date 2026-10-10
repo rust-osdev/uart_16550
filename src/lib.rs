@@ -599,6 +599,19 @@ impl<B: Backend> Uart16550<B> {
             self.configure_fcr();
         }
 
+        // Discard stale data, like Linux does. Without FIFO, FCR can't clear
+        // it. Do this before signaling readiness via DTR and RTS.
+        // SAFETY: We operate on valid register addresses.
+        unsafe {
+            for _ in 0..=FIFO_SIZE {
+                let lsr = LSR::from_bits_retain(self.backend.read(offsets::LSR as u8));
+                if !lsr.contains(LSR::DATA_READY) {
+                    break;
+                }
+                let _ = self.backend.read(offsets::DATA as u8);
+            }
+        }
+
         // Set modem control register.
         // SAFETY: We operate on valid register addresses.
         unsafe {
@@ -637,13 +650,16 @@ impl<B: Backend> Uart16550<B> {
             }
         }
 
-        // Bring status bits into a clean state.
-        {
+        // Bring status bits into a clean state, like Linux does in
+        // `serial8250_clear_interrupts()`.
+        // SAFETY: We operate on valid register addresses.
+        unsafe {
             // Clear receiver line-status deltas / interrupt indicators.
-            let _ = self.lsr();
-
+            let _ = self.backend.read(offsets::LSR as u8);
+            // Clear pending interrupt indications.
+            let _ = self.backend.read(offsets::ISR as u8);
             // Clear modem-status deltas.
-            let _ = self.msr();
+            let _ = self.backend.read(offsets::MSR as u8);
         }
 
         // Set interrupts as the last step.
