@@ -4,7 +4,7 @@
 
 #[cfg(doc)]
 use crate::Uart16550;
-use crate::spec::{FIFO_SIZE, NonIntegerDivisorError};
+use crate::spec::{FIFO_SIZE, InvalidDivisorError};
 use core::error::Error;
 use core::fmt;
 use core::fmt::Display;
@@ -110,7 +110,7 @@ pub enum InitError {
     DeviceNotPresent,
     /// The configured baud rate can not be set as it results in an invalid
     /// divisor.
-    InvalidBaudRate(NonIntegerDivisorError),
+    InvalidBaudRate(InvalidDivisorError),
 }
 
 impl Display for InitError {

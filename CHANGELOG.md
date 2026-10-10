@@ -38,6 +38,9 @@
 - Fixed: `test_loopback()` leaves loopback mode also when it fails.
 - Fixed: `embedded_io::Write::flush()` waits until the transmitter is empty.
 - Fixed: `check_present()` restores the scratch register.
+- **Breaking:** `calc_divisor()` reports divisors that don't fit into the 16-bit
+  divisor latch instead of panicking. It and `InitError::InvalidBaudRate` now
+  use the new `InvalidDivisorError`.
 
 ## 0.8.1 - 2026-09-14
 
