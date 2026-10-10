@@ -1187,10 +1187,18 @@ impl<B: Backend> Uart16550<B> {
 
     /// Queries the device and returns a [`ConfigRegisterDump`].
     ///
-    /// # Caution
+    /// # Side Effects
     ///
-    /// Reading on some registers may have side effects, for example in the
-    /// [`LSR`].
+    /// Reading the registers has side effects:
+    /// - Reading the [`ISR`] acknowledges a pending
+    ///   [`InterruptType::TransmitterHoldingRegisterEmpty`] interrupt.
+    /// - Reading the [`LSR`] and [`MSR`] clears their error flags and change
+    ///   indicators in the hardware. The driver keeps them for [`Self::lsr`]
+    ///   and [`Self::msr`], and the dump contains them as well.
+    /// - Reading [`DLL`] and [`DLM`] requires setting the DLAB bit in the
+    ///   [`LCR`]. The original [`LCR`] is restored afterwards.
+    ///
+    /// [`InterruptType::TransmitterHoldingRegisterEmpty`]: crate::spec::registers::InterruptType::TransmitterHoldingRegisterEmpty
     pub fn config_register_dump(&mut self) -> ConfigRegisterDump {
         let (dll, dlm) = self.dll_dlm();
         ConfigRegisterDump {
