@@ -178,8 +178,8 @@ use crate::spec::registers::{DLL, DLM, FCR, IER, ISR, LCR, LSR, MCR, MSR, SPR, o
 use crate::spec::{FIFO_SIZE, NUM_REGISTERS, calc_baud_rate, calc_divisor};
 use core::cmp;
 use core::hint;
-use core::num::NonZeroU8;
-use core::ptr::NonNull;
+use core::num::{NonZeroU8, NonZeroUsize};
+use core::ptr::{self, NonNull};
 
 pub mod backend;
 pub mod spec;
@@ -314,29 +314,55 @@ impl Uart16550<PioBackend> {
     ///
     /// - `base_address`: Base address of the UART.
     ///
+    /// This is a `const fn`, so the device can be placed in a `static`:
+    ///
+    #[cfg_attr(
+        any(target_arch = "x86", target_arch = "x86_64"),
+        doc = "```rust,no_run"
+    )]
+    #[cfg_attr(
+        not(any(target_arch = "x86", target_arch = "x86_64")),
+        doc = "```rust,ignore"
+    )]
+    /// use uart_16550::Uart16550;
+    /// use uart_16550::backend::PioBackend;
+    ///
+    /// const fn com1() -> Uart16550<PioBackend> {
+    ///     // SAFETY: The port is valid and we have exclusive access.
+    ///     // `Result::unwrap()` is not usable in const contexts.
+    ///     match unsafe { Uart16550::new_port(0x3f8) } {
+    ///         Ok(uart) => uart,
+    ///         Err(_) => panic!("should be a valid port"),
+    ///     }
+    /// }
+    ///
+    /// static COM1: std::sync::Mutex<Uart16550<PioBackend>> = std::sync::Mutex::new(com1());
+    /// ```
+    ///
     /// # Safety
     ///
     /// Callers must ensure that the base port is valid and safe to use for the
     /// **whole lifetime** of the device. Further, all [`NUM_REGISTERS`]
     /// registers must be safely reachable from the base address.
-    pub unsafe fn new_port(base_port: u16) -> Result<Self, InvalidAddressError<PortIoAddress>> {
-        let base_address = PortIoAddress(base_port);
+    pub const unsafe fn new_port(base_port: u16) -> Result<Self, InvalidAddressError> {
         if base_port.checked_add(NUM_REGISTERS as u16 - 1).is_none() {
-            return Err(InvalidAddressError::InvalidBaseAddress(base_address));
+            return Err(InvalidAddressError::InvalidBaseAddress(base_port as usize));
         }
 
-        let backend = PioBackend(base_address);
+        let backend = PioBackend(PortIoAddress(base_port));
 
         Ok(Self {
             backend,
             // Will be replaced by the actual config in init() afterwards.
-            config: Config::default(),
+            config: Config::DEFAULT,
         })
     }
 }
 
 impl Uart16550<MmioBackend> {
     /// Creates a new [`Uart16550`] backed by MMIO.
+    ///
+    /// See [`Self::new_mmio_from_address()`] for a `const` variant.
     ///
     /// # Arguments
     ///
@@ -354,33 +380,86 @@ impl Uart16550<MmioBackend> {
     pub unsafe fn new_mmio(
         base_address: NonNull<u8>,
         stride: u8,
-    ) -> Result<Self, InvalidAddressError<MmioAddress>> {
-        let base_address = MmioAddress(base_address);
+    ) -> Result<Self, InvalidAddressError> {
+        Self::check_mmio(base_address.addr().get(), stride)?;
+        Ok(Self {
+            backend: MmioBackend {
+                base_address: MmioAddress(base_address),
+                stride: NonZeroU8::new(stride)
+                    .expect("check_mmio() should have rejected a zero stride"),
+            },
+            // Will be replaced by the actual config in init() afterwards.
+            config: Config::DEFAULT,
+        })
+    }
 
+    /// Creates a new [`Uart16550`] backed by MMIO from an integer address.
+    ///
+    /// Unlike [`Self::new_mmio()`], this is a `const fn`, so the device can be
+    /// placed in a `static`. The pointer is created with
+    /// [`ptr::with_exposed_provenance_mut()`].
+    ///
+    /// ```rust,no_run
+    /// use core::num::NonZeroUsize;
+    /// use uart_16550::Uart16550;
+    /// use uart_16550::backend::MmioBackend;
+    ///
+    /// const fn uart() -> Uart16550<MmioBackend> {
+    ///     let address = NonZeroUsize::new(0x1000).unwrap();
+    ///     // SAFETY: The address is valid and we have exclusive access.
+    ///     // `Result::unwrap()` is not usable in const contexts.
+    ///     match unsafe { Uart16550::new_mmio_from_address(address, 4) } {
+    ///         Ok(uart) => uart,
+    ///         Err(_) => panic!("should be a valid address"),
+    ///     }
+    /// }
+    ///
+    /// static UART: std::sync::Mutex<Uart16550<MmioBackend>> = std::sync::Mutex::new(uart());
+    /// ```
+    ///
+    /// # Arguments
+    ///
+    /// See [`Self::new_mmio()`].
+    ///
+    /// # Safety
+    ///
+    /// See [`Self::new_mmio()`].
+    pub const unsafe fn new_mmio_from_address(
+        base_address: NonZeroUsize,
+        stride: u8,
+    ) -> Result<Self, InvalidAddressError> {
+        if let Err(e) = Self::check_mmio(base_address.get(), stride) {
+            return Err(e);
+        }
+        let ptr = ptr::with_exposed_provenance_mut::<u8>(base_address.get());
+        // SAFETY: The address is non-zero, so the pointer is non-null.
+        let ptr = unsafe { NonNull::new_unchecked(ptr) };
+        Ok(Self {
+            backend: MmioBackend {
+                base_address: MmioAddress(ptr),
+                stride: NonZeroU8::new(stride)
+                    .expect("check_mmio() should have rejected a zero stride"),
+            },
+            // Will be replaced by the actual config in init() afterwards.
+            config: Config::DEFAULT,
+        })
+    }
+
+    /// Checks that the stride is valid and that all registers fit into the
+    /// address space.
+    const fn check_mmio(address: usize, stride: u8) -> Result<(), InvalidAddressError> {
         if stride == 0 || !stride.is_power_of_two() {
             return Err(InvalidAddressError::InvalidStride(stride));
         }
 
-        if (base_address.0.as_ptr() as usize)
+        if address
             .checked_add((NUM_REGISTERS - 1) * stride as usize)
             .is_none()
         {
-            return Err(InvalidAddressError::InvalidBaseAddress(base_address));
+            return Err(InvalidAddressError::InvalidBaseAddress(address));
         }
 
-        // Compiler will optimize the unwrap away
-        let stride = NonZeroU8::new(stride).unwrap();
-
-        let backend = MmioBackend {
-            base_address,
-            stride,
-        };
-
-        Ok(Self {
-            backend,
-            // Will be replaced by the actual config in init() afterwards.
-            config: Config::default(),
-        })
+        Ok(())
     }
 }
 
@@ -1066,8 +1145,8 @@ mod tests {
             assert2::assert!(let Ok(_) = Uart16550::new_port(0x3f8));
             assert2::assert!(let Ok(_) = Uart16550::new_port(u16::MAX - NUM_REGISTERS as u16));
             assert2::assert!(let Ok(_) = Uart16550::new_port(u16::MAX - 7));
-            assert2::assert!(let Err(InvalidAddressError::InvalidBaseAddress(PortIoAddress(_))) = Uart16550::new_port(u16::MAX - 6));
-            assert2::assert!(let Err(InvalidAddressError::InvalidBaseAddress(PortIoAddress(_))) = Uart16550::new_port(u16::MAX));
+            assert2::assert!(let Err(InvalidAddressError::InvalidBaseAddress(0xfff9)) = Uart16550::new_port(u16::MAX - 6));
+            assert2::assert!(let Err(InvalidAddressError::InvalidBaseAddress(0xffff)) = Uart16550::new_port(u16::MAX));
         }
 
         // SAFETY: We just test the constructor but do not access the device.
@@ -1104,6 +1183,25 @@ mod tests {
                 let Err(InvalidAddressError::InvalidStride(9)) =
                     Uart16550::new_mmio(mmio_address, 9)
             );
+        }
+
+        // SAFETY: We just test the constructor but do not access the device.
+        unsafe {
+            let address = NonZeroUsize::new(0x1000).unwrap();
+            assert2::assert!(let Ok(_) = Uart16550::new_mmio_from_address(address, 4));
+            assert2::assert!(
+                let Err(InvalidAddressError::InvalidStride(3)) =
+                    Uart16550::new_mmio_from_address(address, 3)
+            );
+
+            let last_valid = NonZeroUsize::new(usize::MAX - 7 * 4).unwrap();
+            assert2::assert!(let Ok(_) = Uart16550::new_mmio_from_address(last_valid, 4));
+            let first_invalid = last_valid.checked_add(1).unwrap();
+            assert2::assert!(
+                let Err(InvalidAddressError::InvalidBaseAddress(address)) =
+                    Uart16550::new_mmio_from_address(first_invalid, 4)
+            );
+            assert_eq!(address, first_invalid.get());
         }
     }
 
