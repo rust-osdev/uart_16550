@@ -365,12 +365,8 @@ impl Uart16550<PioBackend> {
         }
 
         let backend = PioBackend { base: base_port };
-
-        Ok(Self {
-            backend,
-            // Will be replaced by the actual config in init() afterwards.
-            config: Config::DEFAULT,
-        })
+        // SAFETY: The caller ensured that the port is valid.
+        Ok(unsafe { Self::new_with_backend(backend) })
     }
 }
 
@@ -395,15 +391,13 @@ impl Uart16550<MmioBackend> {
         stride: u8,
     ) -> Result<Self, InvalidAddressError> {
         Self::check_mmio(base_address.addr().get(), stride)?;
-        Ok(Self {
-            backend: MmioBackend {
-                base: base_address,
-                stride: NonZeroU8::new(stride)
-                    .expect("check_mmio() should have rejected a zero stride"),
-            },
-            // Will be replaced by the actual config in init() afterwards.
-            config: Config::DEFAULT,
-        })
+        let backend = MmioBackend {
+            base: base_address,
+            stride: NonZeroU8::new(stride)
+                .expect("check_mmio() should have rejected a zero stride"),
+        };
+        // SAFETY: The caller ensured that the address is valid.
+        Ok(unsafe { Self::new_with_backend(backend) })
     }
 
     /// Creates a new [`Uart16550`] backed by MMIO from an integer address.
@@ -446,15 +440,13 @@ impl Uart16550<MmioBackend> {
         let ptr = ptr::with_exposed_provenance_mut::<u8>(base_address.get());
         // SAFETY: The address is non-zero, so the pointer is non-null.
         let ptr = unsafe { NonNull::new_unchecked(ptr) };
-        Ok(Self {
-            backend: MmioBackend {
-                base: ptr,
-                stride: NonZeroU8::new(stride)
-                    .expect("check_mmio() should have rejected a zero stride"),
-            },
-            // Will be replaced by the actual config in init() afterwards.
-            config: Config::DEFAULT,
-        })
+        let backend = MmioBackend {
+            base: ptr,
+            stride: NonZeroU8::new(stride)
+                .expect("check_mmio() should have rejected a zero stride"),
+        };
+        // SAFETY: The caller ensured that the address is valid.
+        Ok(unsafe { Self::new_with_backend(backend) })
     }
 
     /// Checks that the stride is valid and that all registers fit into the
@@ -500,13 +492,20 @@ impl<B: Backend> Uart16550<B> {
     /// Checks if a device answers at the base address by checking the [`SPR`]
     /// register.
     pub fn check_present(&mut self) -> bool {
-        [0x42, 0x73].into_iter().all(|pattern| {
+        // Others may use the scratch register, so restore it.
+        let old_spr = self.spr();
+        let present = [0x42, 0x73].into_iter().all(|pattern| {
             // SAFETY: We operate on valid register addresses.
             unsafe {
                 self.backend.write(offsets::SPR as u8, pattern);
                 self.backend.read(offsets::SPR as u8) == pattern
             }
-        })
+        });
+        // SAFETY: We operate on valid register addresses.
+        unsafe {
+            self.backend.write(offsets::SPR as u8, old_spr);
+        }
+        present
     }
 
     /// Initializes the devices according to the provided [`Config`] including a
@@ -546,6 +545,14 @@ impl<B: Backend> Uart16550<B> {
     /// Further, the serial config must match the expectations of the receiver
     /// on the other side. Otherwise, garbage will be received.
     pub fn init(&mut self, config: Config) -> Result<(), InitError> {
+        // Validate the config before touching the device.
+        let divisor = calc_divisor(
+            config.frequency,
+            config.baud_rate.to_integer(),
+            config.prescaler_division_factor,
+        )
+        .map_err(InitError::InvalidBaudRate)?;
+
         // It is important to set this early as some helpers rely on that.
         self.config = config;
 
@@ -570,13 +577,6 @@ impl<B: Backend> Uart16550<B> {
         unsafe {
             // Set Divisor Latch Access Bit (DLAB) to access DLL and DLM next
             self.backend.write(offsets::LCR as u8, LCR::DLAB.bits());
-
-            let divisor = calc_divisor(
-                self.config.frequency,
-                self.config.baud_rate.to_integer(),
-                self.config.prescaler_division_factor,
-            )
-            .map_err(InitError::InvalidBaudRate)?;
 
             let low = (divisor & 0xff) as u8;
             let high = ((divisor >> 8) & 0xff) as u8;
@@ -604,6 +604,19 @@ impl<B: Backend> Uart16550<B> {
         // SAFETY: We have exclusive access to the device.
         unsafe {
             self.configure_fcr();
+        }
+
+        // Discard stale data, like Linux does. Without FIFO, FCR can't clear
+        // it. Do this before signaling readiness via DTR and RTS.
+        // SAFETY: We operate on valid register addresses.
+        unsafe {
+            for _ in 0..=FIFO_SIZE {
+                let lsr = LSR::from_bits_retain(self.backend.read(offsets::LSR as u8));
+                if !lsr.contains(LSR::DATA_READY) {
+                    break;
+                }
+                let _ = self.backend.read(offsets::DATA as u8);
+            }
         }
 
         // Set modem control register.
@@ -644,13 +657,16 @@ impl<B: Backend> Uart16550<B> {
             }
         }
 
-        // Bring status bits into a clean state.
-        {
+        // Bring status bits into a clean state, like Linux does in
+        // `serial8250_clear_interrupts()`.
+        // SAFETY: We operate on valid register addresses.
+        unsafe {
             // Clear receiver line-status deltas / interrupt indicators.
-            let _ = self.lsr();
-
+            let _ = self.backend.read(offsets::LSR as u8);
+            // Clear pending interrupt indications.
+            let _ = self.backend.read(offsets::ISR as u8);
             // Clear modem-status deltas.
-            let _ = self.msr();
+            let _ = self.backend.read(offsets::MSR as u8);
         }
 
         // Set interrupts as the last step.
@@ -673,66 +689,79 @@ impl<B: Backend> Uart16550<B> {
     /// - The FIFO will be re-configured and activated by this test.
     // NEVER CHANGE this function without testing on real hardware!
     pub fn test_loopback(&mut self) -> Result<(), LoopbackError> {
+        let old_mcr = self.mcr();
+
+        // We also disable interrupts here.
+        // SAFETY: We operate on valid register addresses.
+        unsafe {
+            self.backend
+                .write(offsets::MCR as u8, MCR::LOOP_BACK.bits());
+        }
+
+        let result = self.test_loopback_in_loopback_mode();
+
+        // Restore MCR on all paths, so the device doesn't stay in loopback
+        // mode.
+        // SAFETY: We operate on valid register addresses.
+        unsafe {
+            self.backend.write(offsets::MCR as u8, old_mcr.bits());
+        }
+
+        result
+    }
+
+    /// The part of [`Self::test_loopback`] that runs in loopback mode.
+    fn test_loopback_in_loopback_mode(&mut self) -> Result<(), LoopbackError> {
         /// Single test byte. Chosen arbitrarily.
         const TEST_BYTE: u8 = 0x42;
         /// Test message. Must be smaller than [`FIFO_SIZE`].
         const TEST_MESSAGE: [u8; FIFO_SIZE] = *b"hello world!1337";
 
-        // SAFETY: We operate on valid register addresses.
+        // SAFETY: We have exclusive access to the device.
         unsafe {
-            let old_mcr = self.mcr();
-
-            // We also disable interrupts here.
-            self.backend
-                .write(offsets::MCR as u8, MCR::LOOP_BACK.bits());
-
             // Reset send and receive FIFOs.
             self.configure_fcr();
+        }
 
-            // Drain any data that might be still there
-            while self.receive_bytes(&mut [0]) > 0 {}
+        // Drain any data that might be still there
+        while self.receive_bytes(&mut [0]) > 0 {}
 
-            // First: check a single byte
-            {
-                self.try_send_byte(TEST_BYTE)
-                    .map_err(LoopbackError::SendError)?;
+        // First: check a single byte
+        {
+            self.try_send_byte(TEST_BYTE)
+                .map_err(LoopbackError::SendError)?;
 
-                let mut read_buf = [0];
-                // Tests on real hardware showed that there can be a short delay
-                // until we can read the data. Therefore, we use the blocking
-                // API rather than `try_receive_byte()`.
-                self.receive_bytes_exact(&mut read_buf);
-                let read = read_buf[0];
-                if read != TEST_BYTE {
-                    return Err(LoopbackError::UnexpectedLoopbackByte {
-                        expected: TEST_BYTE,
-                        actual: read,
-                    });
-                }
+            let mut read_buf = [0];
+            // Tests on real hardware showed that there can be a short delay
+            // until we can read the data. Therefore, we use the blocking
+            // API rather than `try_receive_byte()`.
+            self.receive_bytes_exact(&mut read_buf);
+            let read = read_buf[0];
+            if read != TEST_BYTE {
+                return Err(LoopbackError::UnexpectedLoopbackByte {
+                    expected: TEST_BYTE,
+                    actual: read,
+                });
             }
+        }
 
-            // Now check sending and reading a whole message.
-            // This requires the FIFO to be activated.
-            {
-                self.send_bytes_exact(&TEST_MESSAGE);
+        // Now check sending and reading a whole message.
+        // This requires the FIFO to be activated.
+        {
+            self.send_bytes_exact(&TEST_MESSAGE);
 
-                let mut read_buffer = [0_u8; TEST_MESSAGE.len()];
-                // Tests on real hardware showed that there can be a short delay
-                // until we can read the data. Therefore, we use the blocking
-                // API rather than `receive_bytes()`.
-                self.receive_bytes_exact(&mut read_buffer);
-                let read = read_buffer;
+            let mut read_buffer = [0_u8; TEST_MESSAGE.len()];
+            // Tests on real hardware showed that there can be a short delay
+            // until we can read the data. Therefore, we use the blocking
+            // API rather than `receive_bytes()`.
+            self.receive_bytes_exact(&mut read_buffer);
 
-                if read != TEST_MESSAGE {
-                    return Err(LoopbackError::UnexpectedLoopbackMsg {
-                        expected: TEST_MESSAGE,
-                        actual: read_buffer,
-                    });
-                }
+            if read_buffer != TEST_MESSAGE {
+                return Err(LoopbackError::UnexpectedLoopbackMsg {
+                    expected: TEST_MESSAGE,
+                    actual: read_buffer,
+                });
             }
-
-            // restore MCR
-            self.backend.write(offsets::MCR as u8, old_mcr.bits());
         }
 
         Ok(())

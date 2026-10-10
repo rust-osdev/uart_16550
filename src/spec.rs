@@ -101,11 +101,13 @@ pub fn calc_baud_rate(
     );
 
     let psd = prescaler_division_factor.unwrap_or(0);
-    let a = frequency;
-    let b = 16 * (psd + 1) * divisor;
+    // Calculate in u64, as this can overflow u32 for large inputs.
+    let a = u64::from(frequency);
+    let b = 16 * (u64::from(psd) + 1) * u64::from(divisor);
 
-    if a.is_multiple_of(b) {
-        Ok(a / b)
+    if b != 0 && a.is_multiple_of(b) {
+        // The result is at most `frequency`.
+        Ok((a / b) as u32)
     } else {
         Err(NonIntegerBaudRateError {
             frequency,
@@ -422,8 +424,8 @@ pub mod registers {
         /// Returns the [`InterruptType`] that corresponds to the bits in
         /// [`ISR`].
         ///
-        /// If the lowest bit is `0` (interrupt enable), this function
-        /// returns `None`
+        /// If the lowest bit is `1` (no interrupt pending), this function
+        /// returns `None`.
         #[must_use]
         pub fn from_bits(isr_bits: u8) -> Option<Self> {
             let bits = isr_bits & 0xf;
@@ -1212,6 +1214,10 @@ mod tests {
                 prescaler_division_factor: None,
             })
         );
+        assert!(matches!(
+            calc_divisor(CLK_FREQUENCY_HZ, u32::MAX, Some(0xf)),
+            Err(NonIntegerDivisorError { .. })
+        ));
     }
 
     // ── FCR ──────────────────────────────────────────────────────────────────

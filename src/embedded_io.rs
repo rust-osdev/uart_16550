@@ -7,6 +7,7 @@ use embedded_io::{ErrorType, Read, ReadReady, Write, WriteReady};
 
 use crate::Uart16550;
 use crate::backend::Backend;
+use crate::spec::registers::LSR;
 
 impl<B: Backend> ErrorType for Uart16550<B> {
     type Error = Infallible;
@@ -27,7 +28,15 @@ impl<B: Backend> Write for Uart16550<B> {
         }
     }
 
+    /// Waits until the transmitter is empty.
+    ///
+    /// This blocks as long as the transmitter is stalled, e.g., by hardware
+    /// flow control.
     fn flush(&mut self) -> Result<(), Self::Error> {
+        // Wait until the transmitter sent everything, like Linux' tcdrain().
+        while !self.lsr().contains(LSR::TRANSMITTER_EMPTY) {
+            hint::spin_loop();
+        }
         Ok(())
     }
 }
