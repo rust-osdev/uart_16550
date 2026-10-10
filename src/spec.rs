@@ -424,8 +424,8 @@ pub mod registers {
         /// Returns the [`InterruptType`] that corresponds to the bits in
         /// [`ISR`].
         ///
-        /// If the lowest bit is `0` (interrupt enable), this function
-        /// returns `None`
+        /// If the lowest bit is `1` (no interrupt pending), this function
+        /// returns `None`.
         #[must_use]
         pub fn from_bits(isr_bits: u8) -> Option<Self> {
             let bits = isr_bits & 0xf;
