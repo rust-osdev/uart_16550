@@ -213,6 +213,23 @@ impl<B: Backend> Uart16550Tty<B> {
         Ok(Self(inner))
     }
 
+    /// Creates a new [`Uart16550Tty`] with a custom [`Backend`].
+    ///
+    /// Initializes the device and performs a self-test.
+    ///
+    /// # Arguments
+    ///
+    /// - `backend`: The [`Backend`] performing the register accesses.
+    ///
+    /// # Safety
+    ///
+    /// See [`Uart16550::new_with_backend()`].
+    pub unsafe fn new_with_backend(backend: B, config: Config) -> Result<Self, Uart16550TtyError> {
+        // SAFETY: The caller ensured that the backend is valid.
+        let inner = unsafe { Uart16550::new_with_backend(backend) };
+        Self::init_and_test(inner, config)
+    }
+
     /// Wraps an existing [`Uart16550`] without touching the device.
     ///
     /// Unlike the other constructors, this neither initializes nor tests the

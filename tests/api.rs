@@ -1,3 +1,4 @@
+use core::fmt::Write;
 use core::num::NonZeroUsize;
 use core::ptr::{self, NonNull};
 use std::sync::Mutex;
@@ -125,4 +126,18 @@ fn test_custom_backend() {
     uart.init(Config::default()).unwrap();
     uart.send_bytes_exact(b"hello");
     assert_eq!(uart.backend().sent, b"hello");
+}
+
+/// A [`Uart16550Tty`] can wrap a device in a `static` without accessing it.
+#[test]
+fn test_custom_backend_tty() {
+    static TTY: Mutex<Uart16550Tty<RegisterFileBackend>> = Mutex::new(Uart16550Tty::from_inner(
+        // SAFETY: The backend operates on an in-memory register file.
+        unsafe { Uart16550::new_with_backend(RegisterFileBackend::new()) },
+    ));
+
+    let mut tty = TTY.lock().unwrap();
+    assert!(tty.inner().backend().sent.is_empty());
+    writeln!(tty, "hello").unwrap();
+    assert_eq!(tty.inner().backend().sent, b"hello\r\n");
 }
