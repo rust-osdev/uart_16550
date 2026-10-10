@@ -1,37 +1,8 @@
 //! MMIO backend implementation.
 
-use super::{Backend, RegisterAddress, assert_offset, private};
+use super::{Backend, assert_offset, private};
 use core::num::NonZeroU8;
 use core::ptr::NonNull;
-
-/// Memory-mapped I/O (MMIO) address.
-///
-/// Guaranteed to be not null.
-///
-/// See [`RegisterAddress`].
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Hash)]
-pub struct MmioAddress(pub(crate) NonNull<u8>);
-
-// SAFETY: `Uart16550` is not `Sync`, so concurrent access from multiple
-// threads is not possible through this type's API alone. Implementing `Send`
-// allows moving ownership to another thread, which is safe because at any
-// point only one thread holds the `&mut self` required for all operations.
-// Without this, higher-level wrappers such as `Mutex<Uart16550>` could not
-// be constructed, since `Mutex<T>: Sync` requires `T: Send`.
-unsafe impl Send for MmioAddress {}
-
-impl RegisterAddress for MmioAddress {
-    #[inline(always)]
-    fn add_offset(self, offset: u8) -> Self {
-        // MMIO is not a Rust allocation; the constructor already rejects
-        // register ranges whose address arithmetic would wrap.
-        let address = self.0.as_ptr().wrapping_add(offset as usize);
-        let address = NonNull::new(address).expect("validated MMIO address offset cannot be null");
-        Self(address)
-    }
-}
-
-impl private::Sealed for MmioAddress {}
 
 /// Arch-specific quirks to access hardware.
 ///
@@ -39,15 +10,13 @@ impl private::Sealed for MmioAddress {}
 /// virtualizable. We therefore need to be more explicit about the instruction.
 /// More info: <https://github.com/rust-lang/rust/issues/131894>
 mod arch {
-    use super::MmioAddress;
     #[cfg(any(doc, not(target_arch = "aarch64")))]
     use core::ptr;
 
     /// Wrapper around [`ptr::read_volatile`].
     #[cfg(target_arch = "aarch64")]
     #[inline(always)]
-    pub unsafe fn mmio_read_register(address: MmioAddress) -> u8 {
-        let ptr = address.0.as_ptr();
+    pub unsafe fn mmio_read_register(ptr: *mut u8) -> u8 {
         let ret: u8;
         // SAFETY: Caller ensures the address is valid MMIO memory.
         unsafe {
@@ -64,16 +33,15 @@ mod arch {
     /// Wrapper around [`ptr::read_volatile`].
     #[cfg(not(target_arch = "aarch64"))]
     #[inline(always)]
-    pub unsafe fn mmio_read_register(address: MmioAddress) -> u8 {
+    pub unsafe fn mmio_read_register(ptr: *mut u8) -> u8 {
         // SAFETY: Caller ensures the address is valid MMIO memory.
-        unsafe { ptr::read_volatile(address.0.as_ptr()) }
+        unsafe { ptr::read_volatile(ptr) }
     }
 
     /// Wrapper around [`ptr::write_volatile`].
     #[cfg(target_arch = "aarch64")]
     #[inline(always)]
-    pub unsafe fn mmio_write_register(address: MmioAddress, value: u8) {
-        let ptr = address.0.as_ptr();
+    pub unsafe fn mmio_write_register(ptr: *mut u8, value: u8) {
         // SAFETY: Caller ensures the address is valid MMIO memory.
         unsafe {
             core::arch::asm!(
@@ -88,27 +56,34 @@ mod arch {
     /// Wrapper around [`ptr::write_volatile`].
     #[cfg(not(target_arch = "aarch64"))]
     #[inline(always)]
-    pub unsafe fn mmio_write_register(address: MmioAddress, value: u8) {
+    pub unsafe fn mmio_write_register(ptr: *mut u8, value: u8) {
         // SAFETY: Caller ensures the address is valid MMIO memory.
-        unsafe { ptr::write_volatile(address.0.as_ptr(), value) }
+        unsafe { ptr::write_volatile(ptr, value) }
     }
 }
 
 /// MMIO-mapped UART 16550.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Hash)]
 pub struct MmioBackend {
-    // non-null
-    pub(crate) base_address: MmioAddress,
+    pub(crate) base: NonNull<u8>,
     pub(crate) stride: NonZeroU8,
 }
+
+// SAFETY: `Uart16550` is not `Sync`, so concurrent access from multiple
+// threads is not possible through this type's API alone. Implementing `Send`
+// allows moving ownership to another thread, which is safe because at any
+// point only one thread holds the `&mut self` required for all operations.
+// Without this, higher-level wrappers such as `Mutex<Uart16550>` could not
+// be constructed, since `Mutex<T>: Sync` requires `T: Send`.
+unsafe impl Send for MmioBackend {}
 
 impl private::Sealed for MmioBackend {}
 
 impl MmioBackend {
     /// Returns the base address.
     #[must_use]
-    pub const fn base(&self) -> MmioAddress {
-        self.base_address
+    pub const fn base(&self) -> NonNull<u8> {
+        self.base
     }
 
     /// Returns the stride, i.e., the distance between consecutive registers.
@@ -119,27 +94,28 @@ impl MmioBackend {
 
     /// Returns the address of the register at the given register offset.
     #[inline(always)]
-    fn register(&self, register_offset: u8) -> MmioAddress {
+    fn register(&self, register_offset: u8) -> *mut u8 {
         assert_offset(register_offset);
-        let address_offset = register_offset
-            .checked_mul(u8::from(self.stride))
-            .expect("offset * stride overflows u8; reduce stride");
-        self.base_address.add_offset(address_offset)
+        // MMIO is not a Rust allocation; the constructor already rejects
+        // register ranges whose address arithmetic would wrap.
+        self.base
+            .as_ptr()
+            .wrapping_add(usize::from(register_offset) * usize::from(self.stride.get()))
     }
 }
 
 impl Backend for MmioBackend {
     #[inline(always)]
     unsafe fn read(&mut self, register_offset: u8) -> u8 {
-        let address = self.register(register_offset);
+        let ptr = self.register(register_offset);
         // SAFETY: The constructor ensured that the MMIO address is safe to use.
-        unsafe { arch::mmio_read_register(address) }
+        unsafe { arch::mmio_read_register(ptr) }
     }
 
     #[inline(always)]
     unsafe fn write(&mut self, register_offset: u8, value: u8) {
-        let address = self.register(register_offset);
+        let ptr = self.register(register_offset);
         // SAFETY: The constructor ensured that the MMIO address is safe to use.
-        unsafe { arch::mmio_write_register(address, value) }
+        unsafe { arch::mmio_write_register(ptr, value) }
     }
 }

@@ -11,28 +11,14 @@ mod mmio;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64", doc))]
 mod pio;
 
-pub use mmio::{MmioAddress, MmioBackend};
+pub use mmio::MmioBackend;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64", doc))]
-pub use pio::{PioBackend, PortIoAddress};
+pub use pio::PioBackend;
 
 use crate::spec::NUM_REGISTERS;
-use core::fmt::Debug;
 
 mod private {
     pub trait Sealed {}
-}
-
-/// Abstraction over register addresses in [`Backend`].
-///
-/// # Safety
-///
-/// All implementations and instances of this trait are created within this
-/// crate and do follow all safety invariants. API users don't get access to the
-/// underlying register addresses, nor can they construct one themselves, as this
-/// type et al. are sealed.
-pub trait RegisterAddress: Copy + Clone + Debug + Sized + private::Sealed {
-    /// Adds a byte offset onto the base register address.
-    fn add_offset(self, offset: u8) -> Self;
 }
 
 #[inline]

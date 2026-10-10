@@ -1,42 +1,29 @@
 //! x86 Port IO backend implementation.
 
-use super::{Backend, RegisterAddress, assert_offset, private};
+use super::{Backend, assert_offset, private};
 use core::arch::asm;
-
-/// x86 port I/O address.
-///
-/// See [`RegisterAddress`].
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Hash)]
-pub struct PortIoAddress(pub(crate) u16);
-
-impl RegisterAddress for PortIoAddress {
-    #[inline(always)]
-    fn add_offset(self, offset: u8) -> Self {
-        let port = self.0 + offset as u16;
-        Self(port)
-    }
-}
-
-impl private::Sealed for PortIoAddress {}
 
 /// x86 Port I/O backed UART 16550.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Hash)]
-pub struct PioBackend(pub(crate) PortIoAddress /* base port */);
+pub struct PioBackend {
+    pub(crate) base: u16,
+}
 
 impl private::Sealed for PioBackend {}
 
 impl PioBackend {
     /// Returns the base port.
     #[must_use]
-    pub const fn base(&self) -> PortIoAddress {
-        self.0
+    pub const fn base(&self) -> u16 {
+        self.base
     }
 
     /// Returns the port of the register at the given register offset.
     #[inline(always)]
-    fn port(&self, register_offset: u8) -> PortIoAddress {
+    fn port(&self, register_offset: u8) -> u16 {
         assert_offset(register_offset);
-        self.0.add_offset(register_offset)
+        // The constructor ensures that all registers fit into the port space.
+        self.base + u16::from(register_offset)
     }
 }
 
@@ -49,7 +36,7 @@ impl Backend for PioBackend {
             let ret: u8;
             asm!(
                 "inb %dx, %al",
-                in("dx") port.0,
+                in("dx") port,
                 out("al") ret,
                 options(att_syntax, nostack, preserves_flags)
             );
@@ -65,7 +52,7 @@ impl Backend for PioBackend {
             asm!(
                 "outb %al, %dx",
                 in("al") value,
-                in("dx") port.0,
+                in("dx") port,
                 options(att_syntax, nostack, preserves_flags)
             );
         }

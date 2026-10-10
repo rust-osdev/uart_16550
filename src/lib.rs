@@ -171,9 +171,9 @@ pub use crate::config::*;
 pub use crate::error::*;
 pub use crate::tty::*;
 
-use crate::backend::{Backend, MmioAddress, MmioBackend};
 #[cfg(any(target_arch = "x86", target_arch = "x86_64", doc))]
-use crate::backend::{PioBackend, PortIoAddress};
+use crate::backend::PioBackend;
+use crate::backend::{Backend, MmioBackend};
 use crate::spec::registers::{DLL, DLM, FCR, IER, ISR, LCR, LSR, MCR, MSR, SPR, offsets};
 use crate::spec::{FIFO_SIZE, NUM_REGISTERS, calc_baud_rate, calc_divisor};
 use core::cmp;
@@ -349,7 +349,7 @@ impl Uart16550<PioBackend> {
             return Err(InvalidAddressError::InvalidBaseAddress(base_port as usize));
         }
 
-        let backend = PioBackend(PortIoAddress(base_port));
+        let backend = PioBackend { base: base_port };
 
         Ok(Self {
             backend,
@@ -384,7 +384,7 @@ impl Uart16550<MmioBackend> {
         Self::check_mmio(base_address.addr().get(), stride)?;
         Ok(Self {
             backend: MmioBackend {
-                base_address: MmioAddress(base_address),
+                base: base_address,
                 stride: NonZeroU8::new(stride)
                     .expect("check_mmio() should have rejected a zero stride"),
             },
@@ -436,7 +436,7 @@ impl Uart16550<MmioBackend> {
         let ptr = unsafe { NonNull::new_unchecked(ptr) };
         Ok(Self {
             backend: MmioBackend {
-                base_address: MmioAddress(ptr),
+                base: ptr,
                 stride: NonZeroU8::new(stride)
                     .expect("check_mmio() should have rejected a zero stride"),
             },

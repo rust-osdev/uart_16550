@@ -16,6 +16,9 @@
 - **Breaking:** `Backend` only has `read()` and `write()`. Use
   `PioBackend::base()`, `MmioBackend::base()`, and `MmioBackend::stride()`
   instead of `Backend::base()` and `Backend::stride()`.
+- **Breaking:** `RegisterAddress`, `PortIoAddress`, and `MmioAddress` are
+  removed. `PioBackend::base()` returns a `u16` and `MmioBackend::base()` a
+  `NonNull<u8>`.
 
 ## 0.8.1 - 2026-09-14
 
