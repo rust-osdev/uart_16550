@@ -17,10 +17,10 @@ use crate::backend::{Backend, MmioBackend};
 use crate::{Config, InitError, InvalidAddressError, LoopbackError, Uart16550};
 use core::error::Error;
 use core::fmt::{self, Display, Formatter};
+use core::num::NonZeroUsize;
 use core::ptr::NonNull;
 
-/// Errors that [`Uart16550Tty::new_port()`] and [`Uart16550Tty::new_mmio()`] may
-/// return.
+/// Errors that the constructors of [`Uart16550Tty`] may return.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Uart16550TtyError {
     /// The underlying address is invalid.
@@ -169,6 +169,35 @@ impl Uart16550Tty<MmioBackend> {
         // SAFETY: The address is valid and we have exclusive access.
         let inner = unsafe {
             Uart16550::new_mmio(base_address, stride).map_err(Uart16550TtyError::AddressError)?
+        };
+        Self::init_and_test(inner, config)
+    }
+
+    /// Creates a new [`Uart16550Tty`] backed by MMIO from an integer address.
+    ///
+    /// Initializes the device and performs a self-test.
+    ///
+    /// Unlike [`Self::new_mmio()`], this takes the base address as an integer
+    /// instead of a pointer. It uses [`Uart16550::new_mmio_from_address()`]
+    /// under the hood.
+    ///
+    /// # Arguments
+    ///
+    /// See [`Self::new_mmio()`], with the exception that `base_address` is an
+    /// integer instead of a pointer.
+    ///
+    /// # Safety
+    ///
+    /// See [`Self::new_mmio()`].
+    pub unsafe fn new_mmio_from_address(
+        base_address: NonZeroUsize,
+        stride: u8,
+        config: Config,
+    ) -> Result<Self, Uart16550TtyError> {
+        // SAFETY: The address is valid and we have exclusive access.
+        let inner = unsafe {
+            Uart16550::new_mmio_from_address(base_address, stride)
+                .map_err(Uart16550TtyError::AddressError)?
         };
         Self::init_and_test(inner, config)
     }

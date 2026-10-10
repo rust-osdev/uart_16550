@@ -21,6 +21,8 @@
   `NonNull<u8>`.
 - **Breaking:** `Uart16550::config()` only returns the `Config`. Use the new
   `Uart16550::backend()` to access the backend.
+- New `Uart16550Tty::new_mmio_from_address()`, the counterpart of
+  `Uart16550::new_mmio_from_address()`.
 
 ## 0.8.1 - 2026-09-14
 
