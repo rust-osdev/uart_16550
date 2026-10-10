@@ -7,4 +7,4 @@ publish = false
 [dependencies]
 jiff = { version = "0.2", default-features = false }
 uart_16550 = { path = ".." }
-uefi = { version = "0.40.0", features = ["alloc", "global_allocator", "jiff02", "panic_handler"] }
+uefi = { version = "0.41.0", features = ["alloc", "global_allocator", "jiff02", "panic_handler"] }
