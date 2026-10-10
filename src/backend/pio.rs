@@ -59,3 +59,31 @@ impl Backend for PioBackend {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::Uart16550;
+    use crate::spec::NUM_REGISTERS;
+
+    /// All registers at the highest base port the constructor accepts are
+    /// addressable without overflow.
+    #[test]
+    fn port_at_upper_boundary() {
+        let base = u16::MAX - (NUM_REGISTERS as u16 - 1);
+
+        // SAFETY: We just test the constructor but do not access the device.
+        let uart = unsafe { Uart16550::new_port(base) }
+            .expect("should accept the highest valid base port");
+        let backend = uart.config().1;
+        for register_offset in 0..NUM_REGISTERS as u8 {
+            assert_eq!(
+                backend.port(register_offset),
+                base + u16::from(register_offset)
+            );
+        }
+        assert_eq!(backend.port(NUM_REGISTERS as u8 - 1), u16::MAX);
+
+        // SAFETY: We just test the constructor but do not access the device.
+        assert!(unsafe { Uart16550::new_port(base + 1) }.is_err());
+    }
+}

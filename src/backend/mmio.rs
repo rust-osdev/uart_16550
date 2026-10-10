@@ -122,3 +122,47 @@ impl Backend for MmioBackend {
         unsafe { arch::mmio_write_register(ptr, value) }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::Uart16550;
+    use crate::spec::NUM_REGISTERS;
+    use core::num::NonZeroUsize;
+    use core::ptr::{self, NonNull};
+
+    /// All registers at the highest base address the constructors accept are
+    /// addressable without overflow.
+    #[test]
+    fn register_at_upper_boundary() {
+        for stride in [1_u8, 2, 4, 8] {
+            let base = usize::MAX - (NUM_REGISTERS - 1) * usize::from(stride);
+            let ptr = NonNull::new(ptr::with_exposed_provenance_mut::<u8>(base))
+                .expect("should be non-null");
+
+            // SAFETY: We just test the constructor but do not access the device.
+            let uart = unsafe { Uart16550::new_mmio(ptr, stride) }
+                .expect("should accept the highest valid base address");
+            let backend = uart.config().1;
+            for register_offset in 0..NUM_REGISTERS as u8 {
+                assert_eq!(
+                    backend.register(register_offset).addr(),
+                    base + usize::from(register_offset) * usize::from(stride)
+                );
+            }
+            assert_eq!(backend.register(NUM_REGISTERS as u8 - 1).addr(), usize::MAX);
+
+            // SAFETY: We just test the constructors but do not access the
+            // device.
+            unsafe {
+                let address = NonZeroUsize::new(base).expect("should be non-zero");
+                assert!(Uart16550::new_mmio_from_address(address, stride).is_ok());
+
+                let address = address.checked_add(1).expect("should not overflow");
+                let ptr = NonNull::new(ptr::with_exposed_provenance_mut::<u8>(address.get()))
+                    .expect("should be non-null");
+                assert!(Uart16550::new_mmio(ptr, stride).is_err());
+                assert!(Uart16550::new_mmio_from_address(address, stride).is_err());
+            }
+        }
+    }
+}
