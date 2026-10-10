@@ -990,6 +990,35 @@ impl<B: Backend> Uart16550<B> {
         }
     }
 
+    /* ----- Interrupts ----------------------------------------------------- */
+
+    /// Enables the given interrupts in addition to the enabled ones.
+    ///
+    /// Enabling [`IER::THR_EMPTY`] doesn't raise an interrupt on all devices.
+    /// To start interrupt-driven transmission, send the first bytes directly.
+    ///
+    /// This also updates the interrupts in [`Self::config`].
+    pub fn enable_interrupts(&mut self, interrupts: IER) {
+        let ier = self.ier() | interrupts;
+        self.config.interrupts = ier;
+        // SAFETY: We operate on valid register addresses.
+        unsafe {
+            self.backend.write(offsets::IER as u8, ier.bits());
+        }
+    }
+
+    /// Disables the given interrupts and keeps the other enabled ones.
+    ///
+    /// This also updates the interrupts in [`Self::config`].
+    pub fn disable_interrupts(&mut self, interrupts: IER) {
+        let ier = self.ier() - interrupts;
+        self.config.interrupts = ier;
+        // SAFETY: We operate on valid register addresses.
+        unsafe {
+            self.backend.write(offsets::IER as u8, ier.bits());
+        }
+    }
+
     /* ----- Typed Register Getters ----------------------------------------- */
 
     /// Fetches the current value from the [`IER`].

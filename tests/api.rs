@@ -6,7 +6,7 @@ use std::sync::Mutex;
 use uart_16550::backend::PioBackend;
 use uart_16550::backend::{Backend, MmioBackend};
 use uart_16550::spec::NUM_REGISTERS;
-use uart_16550::spec::registers::{FCR, ISR, LCR, LSR, offsets};
+use uart_16550::spec::registers::{FCR, IER, ISR, LCR, LSR, offsets};
 use uart_16550::{Config, Uart16550, Uart16550Tty};
 
 /// This ensures that all necessary helper types to create bindings are publicly
@@ -150,6 +150,25 @@ fn test_fifo_detection() {
     uart.init(Config::default()).unwrap();
     assert!(!uart.fifo_enabled());
     assert_eq!(uart.send_bytes(b"hello"), 1);
+}
+
+/// Interrupts can be enabled and disabled after `init()`.
+#[test]
+fn test_enable_disable_interrupts() {
+    // SAFETY: The backend operates on an in-memory register file.
+    let mut uart = unsafe { Uart16550::new_with_backend(RegisterFileBackend::new()) };
+    uart.init(Config {
+        interrupts: IER::DATA_READY,
+        ..Config::default()
+    })
+    .unwrap();
+
+    uart.enable_interrupts(IER::THR_EMPTY);
+    assert_eq!(uart.ier(), IER::DATA_READY | IER::THR_EMPTY);
+    assert_eq!(uart.config().interrupts, IER::DATA_READY | IER::THR_EMPTY);
+    uart.disable_interrupts(IER::DATA_READY);
+    assert_eq!(uart.ier(), IER::THR_EMPTY);
+    assert_eq!(uart.config().interrupts, IER::THR_EMPTY);
 }
 
 /// A custom backend can be used for the full device lifecycle, including a
