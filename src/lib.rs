@@ -682,66 +682,79 @@ impl<B: Backend> Uart16550<B> {
     /// - The FIFO will be re-configured and activated by this test.
     // NEVER CHANGE this function without testing on real hardware!
     pub fn test_loopback(&mut self) -> Result<(), LoopbackError> {
+        let old_mcr = self.mcr();
+
+        // We also disable interrupts here.
+        // SAFETY: We operate on valid register addresses.
+        unsafe {
+            self.backend
+                .write(offsets::MCR as u8, MCR::LOOP_BACK.bits());
+        }
+
+        let result = self.test_loopback_in_loopback_mode();
+
+        // Restore MCR on all paths, so the device doesn't stay in loopback
+        // mode.
+        // SAFETY: We operate on valid register addresses.
+        unsafe {
+            self.backend.write(offsets::MCR as u8, old_mcr.bits());
+        }
+
+        result
+    }
+
+    /// The part of [`Self::test_loopback`] that runs in loopback mode.
+    fn test_loopback_in_loopback_mode(&mut self) -> Result<(), LoopbackError> {
         /// Single test byte. Chosen arbitrarily.
         const TEST_BYTE: u8 = 0x42;
         /// Test message. Must be smaller than [`FIFO_SIZE`].
         const TEST_MESSAGE: [u8; FIFO_SIZE] = *b"hello world!1337";
 
-        // SAFETY: We operate on valid register addresses.
+        // SAFETY: We have exclusive access to the device.
         unsafe {
-            let old_mcr = self.mcr();
-
-            // We also disable interrupts here.
-            self.backend
-                .write(offsets::MCR as u8, MCR::LOOP_BACK.bits());
-
             // Reset send and receive FIFOs.
             self.configure_fcr();
+        }
 
-            // Drain any data that might be still there
-            while self.receive_bytes(&mut [0]) > 0 {}
+        // Drain any data that might be still there
+        while self.receive_bytes(&mut [0]) > 0 {}
 
-            // First: check a single byte
-            {
-                self.try_send_byte(TEST_BYTE)
-                    .map_err(LoopbackError::SendError)?;
+        // First: check a single byte
+        {
+            self.try_send_byte(TEST_BYTE)
+                .map_err(LoopbackError::SendError)?;
 
-                let mut read_buf = [0];
-                // Tests on real hardware showed that there can be a short delay
-                // until we can read the data. Therefore, we use the blocking
-                // API rather than `try_receive_byte()`.
-                self.receive_bytes_exact(&mut read_buf);
-                let read = read_buf[0];
-                if read != TEST_BYTE {
-                    return Err(LoopbackError::UnexpectedLoopbackByte {
-                        expected: TEST_BYTE,
-                        actual: read,
-                    });
-                }
+            let mut read_buf = [0];
+            // Tests on real hardware showed that there can be a short delay
+            // until we can read the data. Therefore, we use the blocking
+            // API rather than `try_receive_byte()`.
+            self.receive_bytes_exact(&mut read_buf);
+            let read = read_buf[0];
+            if read != TEST_BYTE {
+                return Err(LoopbackError::UnexpectedLoopbackByte {
+                    expected: TEST_BYTE,
+                    actual: read,
+                });
             }
+        }
 
-            // Now check sending and reading a whole message.
-            // This requires the FIFO to be activated.
-            {
-                self.send_bytes_exact(&TEST_MESSAGE);
+        // Now check sending and reading a whole message.
+        // This requires the FIFO to be activated.
+        {
+            self.send_bytes_exact(&TEST_MESSAGE);
 
-                let mut read_buffer = [0_u8; TEST_MESSAGE.len()];
-                // Tests on real hardware showed that there can be a short delay
-                // until we can read the data. Therefore, we use the blocking
-                // API rather than `receive_bytes()`.
-                self.receive_bytes_exact(&mut read_buffer);
-                let read = read_buffer;
+            let mut read_buffer = [0_u8; TEST_MESSAGE.len()];
+            // Tests on real hardware showed that there can be a short delay
+            // until we can read the data. Therefore, we use the blocking
+            // API rather than `receive_bytes()`.
+            self.receive_bytes_exact(&mut read_buffer);
 
-                if read != TEST_MESSAGE {
-                    return Err(LoopbackError::UnexpectedLoopbackMsg {
-                        expected: TEST_MESSAGE,
-                        actual: read_buffer,
-                    });
-                }
+            if read_buffer != TEST_MESSAGE {
+                return Err(LoopbackError::UnexpectedLoopbackMsg {
+                    expected: TEST_MESSAGE,
+                    actual: read_buffer,
+                });
             }
-
-            // restore MCR
-            self.backend.write(offsets::MCR as u8, old_mcr.bits());
         }
 
         Ok(())

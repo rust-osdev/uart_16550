@@ -35,6 +35,7 @@
 - Fixed: `init()` no longer leaves DLAB set if the baud rate is invalid.
 - Fixed: `calc_baud_rate()` no longer overflows for large inputs.
 - Fixed: `init()` discards stale received data also without FIFO.
+- Fixed: `test_loopback()` leaves loopback mode also when it fails.
 
 ## 0.8.1 - 2026-09-14
 
