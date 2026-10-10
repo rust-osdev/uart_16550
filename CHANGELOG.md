@@ -36,6 +36,7 @@
 - Fixed: `calc_baud_rate()` no longer overflows for large inputs.
 - Fixed: `init()` discards stale received data also without FIFO.
 - Fixed: `test_loopback()` leaves loopback mode also when it fails.
+- Fixed: `embedded_io::Write::flush()` waits until the transmitter is empty.
 
 ## 0.8.1 - 2026-09-14
 
