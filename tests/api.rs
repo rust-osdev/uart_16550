@@ -1,10 +1,10 @@
 use core::num::NonZeroUsize;
 use core::ptr::{self, NonNull};
 use std::sync::Mutex;
-use uart_16550::Uart16550;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use uart_16550::backend::PioBackend;
 use uart_16550::backend::{Backend, MmioBackend};
+use uart_16550::{Uart16550, Uart16550Tty};
 
 /// This ensures that all necessary helper types to create bindings are publicly
 /// exported.
@@ -56,4 +56,20 @@ fn test_static_mmio() {
         },
     );
     let _ = &UART;
+}
+
+/// A [`Uart16550Tty`] can wrap a device without accessing it, also in a
+/// `static`.
+///
+/// This test succeeds if it compiles.
+#[test]
+fn test_static_tty() {
+    static TTY: Mutex<Uart16550Tty<MmioBackend>> = Mutex::new(Uart16550Tty::from_inner(
+        // SAFETY: This is a synthetic example and the hardware is not accessed.
+        match unsafe { Uart16550::new_mmio_from_address(NonZeroUsize::new(0x1000).unwrap(), 4) } {
+            Ok(uart) => uart,
+            Err(_) => panic!("should be a valid address"),
+        },
+    ));
+    let _ = &TTY;
 }

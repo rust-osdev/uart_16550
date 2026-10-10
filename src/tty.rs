@@ -213,6 +213,15 @@ impl<B: Backend> Uart16550Tty<B> {
         Ok(Self(inner))
     }
 
+    /// Wraps an existing [`Uart16550`] without touching the device.
+    ///
+    /// Unlike the other constructors, this neither initializes nor tests the
+    /// device. This is useful if the device was already initialized, e.g., by
+    /// an earlier boot stage.
+    pub const fn from_inner(inner: Uart16550<B>) -> Self {
+        Self(inner)
+    }
+
     /// Returns a reference to the underlying [`Uart16550`].
     pub const fn inner(&self) -> &Uart16550<B> {
         &self.0
