@@ -20,6 +20,9 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
+          # TODO: go back to stable once v1.100 is released
+          # toolchain: stable
+          toolchain: nightly
           targets: x86_64-unknown-uefi,aarch64-unknown-uefi
       - name: Install QEMU, firmware, and harness tools
         run: |
