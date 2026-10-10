@@ -419,7 +419,8 @@ impl Uart16550<MmioBackend> {
     ///
     /// # Arguments
     ///
-    /// See [`Self::new_mmio()`].
+    /// See [`Self::new_mmio()`], with the exception that `base_address` is an
+    /// integer instead of a pointer.
     ///
     /// # Safety
     ///
@@ -1053,6 +1054,19 @@ impl<B: Backend> Uart16550<B> {
         &self.backend
     }
 
+    /// Returns the backend mutably.
+    ///
+    /// This gives raw access to the device registers via [`Backend::read`] and
+    /// [`Backend::write`], bypassing the driver. This is discouraged; prefer
+    /// the methods of [`Uart16550`]. Raw register accesses can change the
+    /// device state without the driver knowing, e.g., so that it no longer
+    /// matches the config from [`Self::init`]. After changing the device
+    /// configuration this way, call [`Self::init`] again with a matching
+    /// [`Config`]. Otherwise, the driver keeps working with its stored config.
+    pub const fn backend_mut(&mut self) -> &mut B {
+        &mut self.backend
+    }
+
     /// Queries the device and returns a [`ConfigRegisterDump`].
     ///
     /// # Caution
@@ -1206,6 +1220,17 @@ mod tests {
             );
             assert_eq!(address, first_invalid.get());
         }
+    }
+
+    #[test]
+    fn backend_accessors() {
+        let mmio_address = ptr::with_exposed_provenance_mut::<u8>(0x1000);
+        let mmio_address = NonNull::new(mmio_address).unwrap();
+        // SAFETY: We just test the accessors but do not access the device.
+        let mut uart = unsafe { Uart16550::new_mmio(mmio_address, 4) }.unwrap();
+        assert_eq!(uart.backend().base(), mmio_address);
+        assert_eq!(uart.backend_mut().base(), mmio_address);
+        assert_eq!(uart.backend_mut().stride().get(), 4);
     }
 
     #[test]

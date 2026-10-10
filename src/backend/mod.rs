@@ -35,10 +35,29 @@ fn assert_offset(register_offset: u8) {
 /// This acts as Hardware Abstraction Layer (HAL) and abstracts over x86 port
 /// I/O and generic MMIO.
 ///
+/// # Register Offsets
+///
 /// Registers are identified by their logical register offset, i.e., their
 /// index from `0` to `NUM_REGISTERS - 1`. It doesn't depend on how the
 /// registers are laid out in the address space: applying a stride, for
 /// example, is up to the backend.
+///
+/// Responsibilities for valid register offsets:
+///
+/// - Callers of [`Backend::read`] and [`Backend::write`] must pass a register
+///   offset less than [`NUM_REGISTERS`]. This is the safety contract of both
+///   methods.
+/// - [`Uart16550`] only ever passes valid register offsets. Callers of raw
+///   accesses via [`Uart16550::backend_mut()`] are responsible themselves.
+/// - Implementations can therefore rely on valid register offsets. The
+///   built-in backends still check them and panic otherwise.
+///
+/// That all registers fit into the address space is checked once, when the
+/// device is created: the constructors of [`Uart16550`] return an error
+/// otherwise.
+///
+/// [`Uart16550`]: crate::Uart16550
+/// [`Uart16550::backend_mut()`]: crate::Uart16550::backend_mut
 pub trait Backend: Send + private::Sealed {
     /// Reads one byte from the register at the given register offset.
     ///
@@ -53,7 +72,7 @@ pub trait Backend: Send + private::Sealed {
     /// # Safety
     ///
     /// Callers must ensure that `register_offset` is less than
-    /// [`NUM_REGISTERS`].
+    /// [`NUM_REGISTERS`]. See [`Backend`] for who is responsible when.
     unsafe fn read(&mut self, register_offset: u8) -> u8;
 
     /// Writes one byte to the register at the given register offset.
@@ -68,6 +87,6 @@ pub trait Backend: Send + private::Sealed {
     /// # Safety
     ///
     /// Callers must ensure that `register_offset` is less than
-    /// [`NUM_REGISTERS`].
+    /// [`NUM_REGISTERS`]. See [`Backend`] for who is responsible when.
     unsafe fn write(&mut self, register_offset: u8, value: u8);
 }

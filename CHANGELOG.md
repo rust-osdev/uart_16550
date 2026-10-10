@@ -21,6 +21,12 @@
   `NonNull<u8>`.
 - **Breaking:** `Uart16550::config()` only returns the `Config`. Use the new
   `Uart16550::backend()` to access the backend.
+- New `Uart16550Tty::new_mmio_from_address()`, the counterpart of
+  `Uart16550::new_mmio_from_address()`.
+- New `Uart16550::backend_mut()` for raw register access via the backend. Using
+  it is discouraged; prefer the driver's methods.
+- New `const fn` `Uart16550Tty::from_inner()` to wrap an existing device
+  without re-initializing it.
 
 ## 0.8.1 - 2026-09-14
 
