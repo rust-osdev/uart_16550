@@ -17,7 +17,6 @@ pub use pio::{PioBackend, PortIoAddress};
 
 use crate::spec::NUM_REGISTERS;
 use core::fmt::Debug;
-use core::num::NonZeroU8;
 
 mod private {
     pub trait Sealed {}
@@ -49,12 +48,7 @@ fn assert_offset(offset: u8) {
 ///
 /// This acts as Hardware Abstraction Layer (HAL) and abstracts over x86 port
 /// I/O and generic MMIO.
-///
-/// Users should use [`Backend::read`] and [`Backend::write`].
 pub trait Backend: Send + private::Sealed {
-    /// The [`RegisterAddress`] that naturally belongs to the [`Backend`].
-    type Address: RegisterAddress;
-
     /// Reads one byte from the specified register at the given offset.
     ///
     /// This needs a mutable reference as reads can have side effects on the
@@ -67,8 +61,7 @@ pub trait Backend: Send + private::Sealed {
     ///
     /// # Safety
     ///
-    /// Callers must ensure that the effective address consisting of
-    /// [`Self::base`] and `offset` is valid and safe to read.
+    /// Callers must ensure that `offset` is less than [`NUM_REGISTERS`].
     unsafe fn read(&mut self, offset: u8) -> u8;
 
     /// Writes one byte to the specified register at the given offset.
@@ -82,52 +75,6 @@ pub trait Backend: Send + private::Sealed {
     ///
     /// # Safety
     ///
-    /// Callers must ensure that the effective address consisting of
-    /// [`Self::base`] and `offset` is valid and safe to write.
+    /// Callers must ensure that `offset` is less than [`NUM_REGISTERS`].
     unsafe fn write(&mut self, offset: u8, value: u8);
-
-    /* needs impl */
-
-    /// Returns the base [`RegisterAddress`].
-    fn base(&self) -> Self::Address;
-
-    /// Returns the configured stride.
-    ///
-    /// The stride is the fixed byte distance in physical address space between
-    /// consecutive logical registers, i.e. how much the address increases when
-    /// moving from one register index to the next.
-    fn stride(&self) -> NonZeroU8;
-
-    /// PRIVATE API! Use [`Self::read`]!
-    ///
-    /// Reads one byte from the specified register.
-    ///
-    /// This needs a mutable reference as reads can have side effects on the
-    /// device, depending on the register.
-    ///
-    /// # Arguments
-    ///
-    /// - `address`: The total address of the register.
-    ///
-    /// # Safety
-    ///
-    /// Callers must ensure that the provided address is valid and safe to read.
-    #[doc(hidden)]
-    unsafe fn _read_register(&mut self, address: Self::Address) -> u8;
-
-    /// PRIVATE API! Use [`Self::write`]!
-    ///
-    /// Writes one byte to the specified register.
-    ///
-    /// Writes can have side effects on the device, depending on the register.
-    ///
-    /// # Arguments
-    ///
-    /// - `address`: The total address of the register.
-    ///
-    /// # Safety
-    ///
-    /// Callers must ensure that the provided address is valid and safe to write.
-    #[doc(hidden)]
-    unsafe fn _write_register(&mut self, address: Self::Address, value: u8);
 }

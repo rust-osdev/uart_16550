@@ -13,6 +13,9 @@
   `static` too.
 - The register offset check is now inlined, so it is optimized away for the
   constant offsets the driver uses.
+- **Breaking:** `Backend` only has `read()` and `write()`. Use
+  `PioBackend::base()`, `MmioBackend::base()`, and `MmioBackend::stride()`
+  instead of `Backend::base()` and `Backend::stride()`.
 
 ## 0.8.1 - 2026-09-14
 

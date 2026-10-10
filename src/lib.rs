@@ -1043,7 +1043,8 @@ impl<B: Backend> Uart16550<B> {
     /// Returns the config from the last call to [`Self::init`] together with
     /// the corresponding [`Backend`].
     ///
-    /// Via the backend, you can get the base address using [`Backend::base()`].
+    /// Via the backend, you can get the base address, e.g., using
+    /// [`PioBackend::base()`] or [`MmioBackend::base()`].
     /// To get the values that are currently in the registers, consider using
     /// [`Self::config_register_dump`].
     pub const fn config(&self) -> (&Config, &B) {

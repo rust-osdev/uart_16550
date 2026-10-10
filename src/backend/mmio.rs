@@ -1,7 +1,6 @@
 //! MMIO backend implementation.
 
 use super::{Backend, RegisterAddress, assert_offset, private};
-use crate::spec::NUM_REGISTERS;
 use core::num::NonZeroU8;
 use core::ptr::NonNull;
 
@@ -106,6 +105,18 @@ pub struct MmioBackend {
 impl private::Sealed for MmioBackend {}
 
 impl MmioBackend {
+    /// Returns the base address.
+    #[must_use]
+    pub const fn base(&self) -> MmioAddress {
+        self.base_address
+    }
+
+    /// Returns the stride, i.e., the distance between consecutive registers.
+    #[must_use]
+    pub const fn stride(&self) -> NonZeroU8 {
+        self.stride
+    }
+
     /// Returns the address of the register at the given offset.
     #[inline(always)]
     fn register(&self, offset: u8) -> MmioAddress {
@@ -118,55 +129,17 @@ impl MmioBackend {
 }
 
 impl Backend for MmioBackend {
-    type Address = MmioAddress;
-
     #[inline(always)]
     unsafe fn read(&mut self, offset: u8) -> u8 {
         let address = self.register(offset);
-        // SAFETY: The caller ensured that the MMIO address is safe to use.
-        unsafe { self._read_register(address) }
+        // SAFETY: The constructor ensured that the MMIO address is safe to use.
+        unsafe { arch::mmio_read_register(address) }
     }
 
     #[inline(always)]
     unsafe fn write(&mut self, offset: u8, value: u8) {
         let address = self.register(offset);
-        // SAFETY: The caller ensured that the MMIO address is safe to use.
-        unsafe { self._write_register(address, value) }
-    }
-
-    #[inline(always)]
-    fn base(&self) -> Self::Address {
-        self.base_address
-    }
-
-    #[inline(always)]
-    fn stride(&self) -> NonZeroU8 {
-        self.stride
-    }
-
-    #[inline(always)]
-    unsafe fn _read_register(&mut self, address: MmioAddress) -> u8 {
-        debug_assert!(address >= self.base());
-        let register_count = NUM_REGISTERS - 1;
-        let upper_bound_incl = register_count * usize::from(u8::from(self.stride));
-        let last_address = self.base().0.as_ptr().wrapping_add(upper_bound_incl);
-        // Address is in the device's address range
-        debug_assert!(address.0.as_ptr() <= last_address);
-
-        // SAFETY: The caller ensured that the MMIO address is safe to use.
-        unsafe { arch::mmio_read_register(address) }
-    }
-
-    #[inline(always)]
-    unsafe fn _write_register(&mut self, address: MmioAddress, value: u8) {
-        debug_assert!(address >= self.base());
-        let register_count = NUM_REGISTERS - 1;
-        let upper_bound_incl = register_count * usize::from(u8::from(self.stride));
-        let last_address = self.base().0.as_ptr().wrapping_add(upper_bound_incl);
-        // Address is in the device's address range
-        debug_assert!(address.0.as_ptr() <= last_address);
-
-        // SAFETY: The caller ensured that the MMIO address is safe to use.
+        // SAFETY: The constructor ensured that the MMIO address is safe to use.
         unsafe { arch::mmio_write_register(address, value) }
     }
 }

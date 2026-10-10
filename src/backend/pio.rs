@@ -1,9 +1,7 @@
 //! x86 Port IO backend implementation.
 
 use super::{Backend, RegisterAddress, assert_offset, private};
-use crate::spec::NUM_REGISTERS;
 use core::arch::asm;
-use core::num::NonZeroU8;
 
 /// x86 port I/O address.
 ///
@@ -28,6 +26,12 @@ pub struct PioBackend(pub(crate) PortIoAddress /* base port */);
 impl private::Sealed for PioBackend {}
 
 impl PioBackend {
+    /// Returns the base port.
+    #[must_use]
+    pub const fn base(&self) -> PortIoAddress {
+        self.0
+    }
+
     /// Returns the port of the register at the given offset.
     #[inline(always)]
     fn port(&self, offset: u8) -> PortIoAddress {
@@ -37,48 +41,10 @@ impl PioBackend {
 }
 
 impl Backend for PioBackend {
-    type Address = PortIoAddress;
-
     #[inline(always)]
     unsafe fn read(&mut self, offset: u8) -> u8 {
         let port = self.port(offset);
-        // SAFETY: The caller ensured that the I/O port is safe to use.
-        unsafe { self._read_register(port) }
-    }
-
-    #[inline(always)]
-    unsafe fn write(&mut self, offset: u8, value: u8) {
-        let port = self.port(offset);
-        // SAFETY: The caller ensured that the I/O port is safe to use.
-        unsafe { self._write_register(port, value) }
-    }
-
-    #[inline(always)]
-    fn base(&self) -> Self::Address {
-        self.0
-    }
-
-    #[inline(always)]
-    fn stride(&self) -> NonZeroU8 {
-        // stride=1: x86 port I/O registers are always at consecutive port
-        // numbers. Compiler optimizes the unwrap away.
-        NonZeroU8::new(1).unwrap()
-    }
-
-    #[inline(always)]
-    unsafe fn _read_register(&mut self, port: PortIoAddress) -> u8 {
-        debug_assert!(port >= self.base());
-        let upper_bound_incl = NUM_REGISTERS - 1;
-        // Address is in the device's address range
-        debug_assert!(
-            port.0
-                <= self
-                    .base()
-                    .0
-                    .wrapping_add(u16::try_from(upper_bound_incl).unwrap())
-        );
-
-        // SAFETY: The caller ensured that the I/O port is safe to use.
+        // SAFETY: The constructor ensured that the I/O port is safe to use.
         unsafe {
             let ret: u8;
             asm!(
@@ -92,19 +58,9 @@ impl Backend for PioBackend {
     }
 
     #[inline(always)]
-    unsafe fn _write_register(&mut self, port: PortIoAddress, value: u8) {
-        debug_assert!(port >= self.base());
-        let upper_bound_incl = NUM_REGISTERS - 1;
-        // Address is in the device's address range
-        debug_assert!(
-            port.0
-                <= self
-                    .base()
-                    .0
-                    .wrapping_add(u16::try_from(upper_bound_incl).unwrap())
-        );
-
-        // SAFETY: The caller ensured that the I/O port is safe to use.
+    unsafe fn write(&mut self, offset: u8, value: u8) {
+        let port = self.port(offset);
+        // SAFETY: The constructor ensured that the I/O port is safe to use.
         unsafe {
             asm!(
                 "outb %al, %dx",
