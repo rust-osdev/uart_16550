@@ -11,6 +11,14 @@
 - New `const fn` `Uart16550::new_mmio_from_address()`: like `new_mmio()`, but
   takes the base address as `NonZeroUsize`, so MMIO devices can be placed in a
   `static` too.
+- The register offset check is now inlined, so it is optimized away for the
+  constant offsets the driver uses.
+- **Breaking:** `Backend` only has `read()` and `write()`. Use
+  `PioBackend::base()`, `MmioBackend::base()`, and `MmioBackend::stride()`
+  instead of `Backend::base()` and `Backend::stride()`.
+- **Breaking:** `RegisterAddress`, `PortIoAddress`, and `MmioAddress` are
+  removed. `PioBackend::base()` returns a `u16` and `MmioBackend::base()` a
+  `NonNull<u8>`.
 
 ## 0.8.1 - 2026-09-14
 
