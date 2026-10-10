@@ -104,7 +104,7 @@ pub fn calc_baud_rate(
     let a = frequency;
     let b = 16 * (psd + 1) * divisor;
 
-    if a % b == 0 {
+    if a.is_multiple_of(b) {
         Ok(a / b)
     } else {
         Err(NonIntegerBaudRateError {

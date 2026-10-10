@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Breaking:** The MSRV is now 1.91.0.
 - `Uart16550::new_port()` is now a `const fn`, so devices can be placed in a
   `static`.
 
