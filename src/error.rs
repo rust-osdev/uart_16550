@@ -4,7 +4,6 @@
 
 #[cfg(doc)]
 use crate::Uart16550;
-use crate::backend::RegisterAddress;
 use crate::spec::{FIFO_SIZE, NonIntegerDivisorError};
 use core::error::Error;
 use core::fmt;
@@ -15,12 +14,12 @@ use core::fmt::Display;
 ///
 /// [NUM_REGISTERS]: crate::spec::NUM_REGISTERS
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum InvalidAddressError<A: RegisterAddress> {
+pub enum InvalidAddressError {
     /// The given base address is invalid, e.g., it cannot accommodate
     /// <code>[NUM_REGISTERS] - 1</code> consecutive addresses.
     ///
     /// [NUM_REGISTERS]: crate::spec::NUM_REGISTERS
-    InvalidBaseAddress(A),
+    InvalidBaseAddress(usize),
     /// The stride is invalid.
     ///
     /// Must be non-zero and a power of two (typically 1, 2, 4, or 8).
@@ -28,11 +27,11 @@ pub enum InvalidAddressError<A: RegisterAddress> {
     InvalidStride(u8),
 }
 
-impl<A: RegisterAddress> Display for InvalidAddressError<A> {
+impl Display for InvalidAddressError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidBaseAddress(addr) => {
-                write!(f, "invalid register address: {addr:x?}")
+                write!(f, "invalid register address: {addr:#x}")
             }
             Self::InvalidStride(stride) => {
                 write!(
@@ -44,7 +43,7 @@ impl<A: RegisterAddress> Display for InvalidAddressError<A> {
     }
 }
 
-impl<A: RegisterAddress> Error for InvalidAddressError<A> {}
+impl Error for InvalidAddressError {}
 
 /// The loopback test failed.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

@@ -344,15 +344,12 @@ impl Uart16550<PioBackend> {
     /// Callers must ensure that the base port is valid and safe to use for the
     /// **whole lifetime** of the device. Further, all [`NUM_REGISTERS`]
     /// registers must be safely reachable from the base address.
-    pub const unsafe fn new_port(
-        base_port: u16,
-    ) -> Result<Self, InvalidAddressError<PortIoAddress>> {
-        let base_address = PortIoAddress(base_port);
+    pub const unsafe fn new_port(base_port: u16) -> Result<Self, InvalidAddressError> {
         if base_port.checked_add(NUM_REGISTERS as u16 - 1).is_none() {
-            return Err(InvalidAddressError::InvalidBaseAddress(base_address));
+            return Err(InvalidAddressError::InvalidBaseAddress(base_port as usize));
         }
 
-        let backend = PioBackend(base_address);
+        let backend = PioBackend(PortIoAddress(base_port));
 
         Ok(Self {
             backend,
@@ -381,19 +378,20 @@ impl Uart16550<MmioBackend> {
     pub unsafe fn new_mmio(
         base_address: NonNull<u8>,
         stride: u8,
-    ) -> Result<Self, InvalidAddressError<MmioAddress>> {
-        let base_address = MmioAddress(base_address);
-
+    ) -> Result<Self, InvalidAddressError> {
         if stride == 0 || !stride.is_power_of_two() {
             return Err(InvalidAddressError::InvalidStride(stride));
         }
 
-        if (base_address.0.as_ptr() as usize)
+        let address = base_address.addr().get();
+        if address
             .checked_add((NUM_REGISTERS - 1) * stride as usize)
             .is_none()
         {
-            return Err(InvalidAddressError::InvalidBaseAddress(base_address));
+            return Err(InvalidAddressError::InvalidBaseAddress(address));
         }
+
+        let base_address = MmioAddress(base_address);
 
         // Compiler will optimize the unwrap away
         let stride = NonZeroU8::new(stride).unwrap();
@@ -1093,8 +1091,8 @@ mod tests {
             assert2::assert!(let Ok(_) = Uart16550::new_port(0x3f8));
             assert2::assert!(let Ok(_) = Uart16550::new_port(u16::MAX - NUM_REGISTERS as u16));
             assert2::assert!(let Ok(_) = Uart16550::new_port(u16::MAX - 7));
-            assert2::assert!(let Err(InvalidAddressError::InvalidBaseAddress(PortIoAddress(_))) = Uart16550::new_port(u16::MAX - 6));
-            assert2::assert!(let Err(InvalidAddressError::InvalidBaseAddress(PortIoAddress(_))) = Uart16550::new_port(u16::MAX));
+            assert2::assert!(let Err(InvalidAddressError::InvalidBaseAddress(0xfff9)) = Uart16550::new_port(u16::MAX - 6));
+            assert2::assert!(let Err(InvalidAddressError::InvalidBaseAddress(0xffff)) = Uart16550::new_port(u16::MAX));
         }
 
         // SAFETY: We just test the constructor but do not access the device.

@@ -3,6 +3,9 @@
 ## Unreleased
 
 - **Breaking:** The MSRV is now 1.91.0.
+- **Breaking:** `InvalidAddressError` and `Uart16550TtyError` are no longer
+  generic. `InvalidAddressError::InvalidBaseAddress` now holds the base address
+  as `usize`.
 - `Uart16550::new_port()` is now a `const fn`, so devices can be placed in a
   `static`.
 

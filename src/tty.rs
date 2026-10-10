@@ -11,9 +11,9 @@
 //!
 //! See [`Uart16550Tty`].
 
-use crate::backend::{Backend, MmioAddress, MmioBackend, RegisterAddress};
 #[cfg(any(target_arch = "x86", target_arch = "x86_64", doc))]
-use crate::backend::{PioBackend, PortIoAddress};
+use crate::backend::PioBackend;
+use crate::backend::{Backend, MmioBackend};
 use crate::{Config, InitError, InvalidAddressError, LoopbackError, Uart16550};
 use core::error::Error;
 use core::fmt::{self, Display, Formatter};
@@ -22,16 +22,16 @@ use core::ptr::NonNull;
 /// Errors that [`Uart16550Tty::new_port()`] and [`Uart16550Tty::new_mmio()`] may
 /// return.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Uart16550TtyError<A: RegisterAddress> {
+pub enum Uart16550TtyError {
     /// The underlying address is invalid.
-    AddressError(InvalidAddressError<A>),
+    AddressError(InvalidAddressError),
     /// Error initializing the device.
     InitError(InitError),
     /// The device could not be tested for proper operation.
     TestError(LoopbackError),
 }
 
-impl<A: RegisterAddress> Display for Uart16550TtyError<A> {
+impl Display for Uart16550TtyError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::AddressError(e) => {
@@ -47,7 +47,7 @@ impl<A: RegisterAddress> Display for Uart16550TtyError<A> {
     }
 }
 
-impl<A: RegisterAddress + 'static> Error for Uart16550TtyError<A> {
+impl Error for Uart16550TtyError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::AddressError(e) => Some(e),
@@ -133,10 +133,7 @@ impl Uart16550Tty<PioBackend> {
     /// registers must be safely reachable from the base address.
     ///
     /// [`NUM_REGISTERS`]: crate::spec::NUM_REGISTERS
-    pub unsafe fn new_port(
-        base_port: u16,
-        config: Config,
-    ) -> Result<Self, Uart16550TtyError<PortIoAddress>> {
+    pub unsafe fn new_port(base_port: u16, config: Config) -> Result<Self, Uart16550TtyError> {
         // SAFETY: The address is valid and we have exclusive access.
         let mut inner =
             unsafe { Uart16550::new_port(base_port).map_err(Uart16550TtyError::AddressError)? };
@@ -172,7 +169,7 @@ impl Uart16550Tty<MmioBackend> {
         base_address: NonNull<u8>,
         stride: u8,
         config: Config,
-    ) -> Result<Self, Uart16550TtyError<MmioAddress>> {
+    ) -> Result<Self, Uart16550TtyError> {
         // SAFETY: The address is valid and we have exclusive access.
         let mut inner = unsafe {
             Uart16550::new_mmio(base_address, stride).map_err(Uart16550TtyError::AddressError)?
