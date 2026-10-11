@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
 # GNU Assembler Syntax (GAS) with AT&T Assembly Flavor
 #
 # This is understood by LLVM.

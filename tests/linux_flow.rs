@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Tests the driver against a model of a 16550A, following the flows of the
 //! Linux 8250 driver (`drivers/tty/serial/8250/8250_port.c`).
 //!

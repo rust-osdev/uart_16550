@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
 # Per-architecture QEMU machine and firmware selection, shared by run-qemu.sh
 # and run-qemu-ci.sh. This file is sourced, not executed.
 #

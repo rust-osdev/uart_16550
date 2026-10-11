@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Checks performed through the public `uart_16550` API.
 //!
 //! Every discovered candidate is exercised, starting with `init()`, whose

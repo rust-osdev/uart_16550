@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! UEFI console input and Serial I/O ownership handoff.
 //!
 //! The test records the firmware baseline, then disconnects serial controllers

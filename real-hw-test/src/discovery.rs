@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! UART discovery through legacy probing, ACPI SPCR, and PCI enumeration.
 //!
 //! Multiple discovery paths cover fixed COM ports as well as UARTs that
