@@ -42,6 +42,9 @@
   divisor latch instead of panicking. It and `InitError::InvalidBaudRate` now
   use the new `InvalidDivisorError`.
 - **Breaking:** `InitError` is `#[non_exhaustive]`.
+- The docs of `ISR` mention its other name, Interrupt Identification Register
+  (IIR), which some datasheets and Linux use. Searching the docs for IIR finds
+  it.
 
 ## 0.8.1 - 2026-09-14
 
