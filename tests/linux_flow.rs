@@ -8,7 +8,7 @@
 use std::collections::VecDeque;
 use uart_16550::backend::Backend;
 use uart_16550::spec::CLK_FREQUENCY_HZ;
-use uart_16550::spec::registers::{FifoTriggerLevel, IER, MSR, Parity, WordLength};
+use uart_16550::spec::registers::{FifoTriggerLevel, IER, LSR, MSR, Parity, WordLength};
 use uart_16550::{BaudRate, Config, Uart16550};
 
 /// A model of a 16550A UART.
@@ -918,6 +918,132 @@ fn loopback_test_lets_transmission_finish() {
     uart.send_bytes_exact(b"hello");
 
     uart.test_loopback().unwrap();
+
+    assert_eq!(uart.backend_mut().take_sent(), b"hello");
+}
+
+/* ----- Polled I/O --------------------------------------------------------- */
+
+/// Lets the transmitter drain and returns what went out on the wire.
+fn drain_sent(uart: &mut Uart16550<Device16550>) -> Vec<u8> {
+    let dev = uart.backend_mut();
+    dev.idle((FIFO_SIZE + 1) * Device16550::CHAR_TICKS);
+    dev.take_sent()
+}
+
+/// Polled transmit, like the Linux console: every byte goes out in order, and
+/// the TX FIFO never overflows.
+#[test]
+fn polled_transmit() {
+    let message: Vec<u8> = (0..100).collect();
+    for config in [linux_config(), config_without_fifo()] {
+        let mut uart = new_uart();
+        uart.init(config).unwrap();
+
+        uart.send_bytes_exact(&message);
+
+        assert_eq!(drain_sent(&mut uart), message);
+        assert_eq!(uart.backend().tx_overflows, 0);
+    }
+}
+
+/// Polled receive, like Linux' `serial8250_get_poll_char()`: no data is
+/// reported as such, and available data is returned in order.
+#[test]
+fn polled_receive() {
+    let mut uart = new_uart();
+    uart.init(linux_config()).unwrap();
+    assert!(uart.try_receive_byte().is_err());
+
+    uart.backend_mut().inject_rx(b"hello");
+    let mut buf = [0; 16];
+    let n = uart.receive_bytes(&mut buf);
+
+    assert_eq!(&buf[..n], b"hello");
+    assert!(uart.try_receive_byte().is_err());
+}
+
+/// Like Linux' `serial8250_rx_chars()`, a driver can see line errors of a
+/// received byte in LSR before reading it.
+#[test]
+fn receive_errors_are_visible_in_lsr() {
+    let mut uart = new_uart();
+    uart.init(linux_config()).unwrap();
+    uart.backend_mut().inject_rx_with_errors(b'x', LSR_PE);
+
+    assert!(uart.lsr().contains(LSR::PARITY_ERROR));
+    assert_eq!(uart.try_receive_byte(), Ok(b'x'));
+}
+
+/// An RX FIFO overrun is reported once in LSR, and the data received before
+/// is kept.
+#[test]
+fn receive_overrun() {
+    let mut uart = new_uart();
+    uart.init(linux_config()).unwrap();
+    let data: Vec<u8> = (0..=FIFO_SIZE as u8).collect();
+    uart.backend_mut().inject_rx(&data);
+
+    assert!(uart.lsr().contains(LSR::OVERRUN_ERROR));
+    assert!(!uart.lsr().contains(LSR::OVERRUN_ERROR));
+    let mut buf = [0; FIFO_SIZE + 1];
+    let n = uart.receive_bytes(&mut buf);
+    assert_eq!(&buf[..n], &data[..FIFO_SIZE]);
+}
+
+/// On a 16450, which has no FIFO, transmitting doesn't lose data. Linux
+/// detects the missing FIFO via IIR bits 7:6 and sends one byte per THRE.
+#[test]
+fn transmit_on_16450() {
+    // SAFETY: The backend is a model; there is no real device.
+    let mut uart = unsafe { Uart16550::new_with_backend(Device16550::new_16450()) };
+    uart.init(linux_config()).unwrap();
+    let message: Vec<u8> = (0..100).collect();
+
+    uart.send_bytes_exact(&message);
+
+    assert_eq!(uart.backend().tx_overflows, 0);
+    assert_eq!(drain_sent(&mut uart), message);
+}
+
+/// Transmitting reads LSR, which clears the error bits of received data. Like
+/// Linux, which saves them in `lsr_saved_flags`, the driver must not lose them.
+#[test]
+fn transmit_keeps_receive_errors() {
+    let mut uart = new_uart();
+    uart.init(linux_config()).unwrap();
+    uart.backend_mut().inject_rx_with_errors(b'x', LSR_FE);
+
+    uart.send_bytes_exact(b"y");
+
+    assert!(uart.lsr().contains(LSR::FRAMING_ERROR));
+}
+
+/// Receiving reads LSR as well, and also must not lose the errors of the
+/// received byte.
+#[test]
+fn receive_keeps_receive_errors() {
+    let mut uart = new_uart();
+    uart.init(linux_config()).unwrap();
+    uart.backend_mut().inject_rx_with_errors(b'x', LSR_FE);
+
+    assert_eq!(uart.try_receive_byte(), Ok(b'x'));
+
+    assert!(uart.lsr().contains(LSR::FRAMING_ERROR));
+}
+
+/// Like Linux' `tcdrain()`, which waits for TEMT, flushing waits until all
+/// data went out on the wire.
+#[cfg(feature = "embedded-io")]
+#[test]
+fn flush_waits_for_transmitter() {
+    use embedded_io::Write;
+
+    let mut uart = new_uart();
+    uart.init(linux_config()).unwrap();
+
+    uart.write_all(b"hello").unwrap();
+    uart.flush().unwrap();
 
     assert_eq!(uart.backend_mut().take_sent(), b"hello");
 }
