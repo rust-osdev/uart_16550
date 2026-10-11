@@ -2,65 +2,85 @@
 
 ## Unreleased
 
-- **Breaking:** The MSRV is now 1.91.0.
-- **Breaking:** `InvalidAddressError` and `Uart16550TtyError` are no longer
-  generic. `InvalidAddressError::InvalidBaseAddress` now holds the base address
-  as `usize`.
-- `Uart16550::new_port()` is now a `const fn`, so devices can be placed in a
-  `static`.
-- New `const fn` `Uart16550::new_mmio_from_address()`: like `new_mmio()`, but
-  takes the base address as `NonZeroUsize`, so MMIO devices can be placed in a
-  `static` too.
-- The register offset check is now inlined, so it is optimized away for the
-  constant offsets the driver uses.
-- **Breaking:** `Backend` only has `read()` and `write()`. Use
-  `PioBackend::base()`, `MmioBackend::base()`, and `MmioBackend::stride()`
-  instead of `Backend::base()` and `Backend::stride()`.
-- **Breaking:** `RegisterAddress`, `PortIoAddress`, and `MmioAddress` are
-  removed. `PioBackend::base()` returns a `u16` and `MmioBackend::base()` a
+This release makes the driver considerably more robust in production use on real
+hardware. Tests against a model of a 16550A that follows the Linux 8250 driver,
+created with LLM assistance and careful human review, found 12 bugs, all fixed
+now. Most notably, devices without working FIFOs, such as a 16450, overran the
+transmitter and hung the loopback self-test that `Uart16550Tty` always runs, and
+internal register reads lost line errors and modem status changes.
+
+Custom backends allow any kind of register access, e.g., port I/O via `tdcall`
+or GHCB in confidential VMs, and `const fn` constructors let devices live in a
+`static`.
+
+### Breaking Changes
+
+- The MSRV is now 1.91.0.
+- `Backend` only has `read()` and `write()`. Use `PioBackend::base()`,
+  `MmioBackend::base()`, and `MmioBackend::stride()` instead of
+  `Backend::base()` and `Backend::stride()`.
+- `RegisterAddress`, `PortIoAddress`, and `MmioAddress` are removed.
+  `PioBackend::base()` returns a `u16` and `MmioBackend::base()` a
   `NonNull<u8>`.
-- **Breaking:** `Uart16550::config()` only returns the `Config`. Use the new
+- `Uart16550::config()` only returns the `Config`. Use the new
   `Uart16550::backend()` to access the backend.
-- New `Uart16550Tty::new_mmio_from_address()`, the counterpart of
-  `Uart16550::new_mmio_from_address()`.
-- New `Uart16550::backend_mut()` for raw register access via the backend. Using
-  it is discouraged; prefer the driver's methods.
+- `InvalidAddressError` and `Uart16550TtyError` are no longer generic.
+  `InvalidAddressError::InvalidBaseAddress` now holds the base address as
+  `usize`.
+- `calc_divisor()` reports divisors that don't fit into the 16-bit divisor
+  latch instead of panicking. It and `InitError::InvalidBaudRate` now use the
+  new `InvalidDivisorError`.
+- `InitError` is `#[non_exhaustive]`.
+
+### New Features
+
+- Custom backends: `Backend` is no longer sealed and no longer requires `Send`.
+  Pass your own `Backend` to the new `const fn` `Uart16550::new_with_backend()`
+  or the new `Uart16550Tty::new_with_backend()`. `Uart16550` is `Send` if its
+  backend is.
+- `Uart16550::new_port()` is now a `const fn`. The new `const fn`
+  `Uart16550::new_mmio_from_address()` takes the MMIO base address as
+  `NonZeroUsize`, so MMIO devices can be placed in a `static` too.
+  `Uart16550Tty::new_mmio_from_address()` is its counterpart.
+- New `Uart16550::backend()` and `Uart16550::backend_mut()`. Raw register
+  access via `backend_mut()` is discouraged; prefer the driver's methods.
 - New `const fn` `Uart16550Tty::from_inner()` to wrap an existing device
   without re-initializing it.
-- `Backend` no longer requires `Send`. `Uart16550` is `Send` if its backend is.
-- Custom backends: `Backend` is no longer sealed. Pass your own `Backend` to the
-  new `const fn` `Uart16550::new_with_backend()`, for example to perform port
-  I/O via `tdcall` or GHCB in confidential VMs.
-- New `Uart16550Tty::new_with_backend()`.
-- Fixed: `init()` no longer leaves DLAB set if the baud rate is invalid.
-- Fixed: `calc_baud_rate()` no longer overflows for large inputs.
-- Fixed: `init()` discards stale received data also without FIFO.
-- Fixed: `test_loopback()` leaves loopback mode also when it fails.
-- Fixed: `embedded_io::Write::flush()` waits until the transmitter is empty.
-- Fixed: `check_present()` restores the scratch register.
-- **Breaking:** `calc_divisor()` reports divisors that don't fit into the 16-bit
-  divisor latch instead of panicking. It and `InitError::InvalidBaudRate` now
-  use the new `InvalidDivisorError`.
-- **Breaking:** `InitError` is `#[non_exhaustive]`.
-- The docs of `ISR` mention its other name, Interrupt Identification Register
-  (IIR), which some datasheets and Linux use. Searching the docs for IIR finds
-  it.
-- Fixed: `init()` and `test_loopback()` detect whether the FIFOs are really
-  enabled, e.g., not on a 16450, and sending no longer overruns the transmitter
-  then. The new `Uart16550::fifo_enabled()` reports it, and the new
-  `ISR::fifo_enabled()` is a convenience getter for the FIFO bits.
-- Fixed: Sending and receiving no longer lose LSR error flags. The driver
-  keeps them, and `lsr()` reports them in addition to the current register
-  value.
-- Fixed: The CTS check before sending and `check_connected()` no longer lose
-  MSR change indicators. The driver keeps them, and `msr()` reports them in
-  addition to the current register value.
 - New `Uart16550::enable_interrupts()` and `Uart16550::disable_interrupts()`,
   e.g., for interrupt-driven transmission.
-- Fixed: `test_loopback()` no longer spins forever without FIFO.
-- Fixed: `test_loopback()` no longer leaves modem status changes behind.
-- Fixed: `test_loopback()` disables interrupts during the test and lets a
-  running transmission finish first.
+- New `Uart16550::fifo_enabled()` reports whether the FIFOs are really enabled,
+  and `ISR::fifo_enabled()` is a convenience getter for the FIFO bits.
+
+### Bug Fixes
+
+- `init()`:
+  - no longer leaves DLAB set if the baud rate is invalid,
+  - no longer panics on baud rates too low for the 16-bit divisor latch,
+  - discards stale received data also without FIFO.
+- `init()` and `test_loopback()` detect whether the FIFOs are really enabled,
+  e.g., not on a 16450, and sending no longer overruns the transmitter then.
+- Sending and receiving no longer lose LSR error flags, and the CTS check and
+  `check_connected()` no longer lose MSR change indicators. `lsr()` and `msr()`
+  report them in addition to the current register value.
+- `test_loopback()`:
+  - no longer spins forever without FIFO,
+  - leaves loopback mode also when it fails,
+  - no longer leaves modem status changes behind,
+  - disables interrupts during the test and lets a running transmission finish
+    first.
+- `embedded_io::Write::flush()` waits until the transmitter is empty.
+- `check_present()` restores the scratch register.
+- `calc_baud_rate()` no longer overflows for large inputs.
+
+### Other
+
+- The register offset check is now inlined, so it is optimized away for the
+  constant offsets the driver uses.
+- The docs of `ISR` mention its other name, Interrupt Identification Register
+  (IIR), which some datasheets and Linux use.
+- New tests against a model of a 16550A that follows the flows of the Linux
+  8250 driver.
+- All source files have SPDX license headers.
 
 ## 0.8.1 - 2026-09-14
 
