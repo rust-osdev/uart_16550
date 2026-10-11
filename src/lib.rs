@@ -110,8 +110,11 @@
 //! //                                 ^ or `new_port(0x3f8)`
 //! uart.init(Config::default()).expect("should init device successfully");
 //! uart.test_loopback().expect("should have working loopback mode");
-//! // Note: Might fail on real hardware with some null-modem cables
-//! uart.check_connected().expect("should have physically connected receiver");
+//! // Note: Might fail on real hardware with some null-modem cables, e.g.,
+//! // without DSR and CTS. Sending and receiving data can still work then.
+//! if uart.check_connected().is_err() {
+//!     // Handle as appropriate, e.g., log a warning.
+//! }
 //! uart.send_bytes_exact(b"hello world!");
 //! ```
 //!
@@ -254,8 +257,11 @@ mod tty;
 /// //                                 ^ or `new_port(0x3f8)`
 /// uart.init(Config::default()).expect("should init device successfully");
 /// uart.test_loopback().expect("should have working loopback mode");
-/// // Note: Might fail on real hardware with some null-modem cables
-/// uart.check_connected().expect("should have physically connected receiver");
+/// // Note: Might fail on real hardware with some null-modem cables, e.g.,
+/// // without DSR and CTS. Sending and receiving data can still work then.
+/// if uart.check_connected().is_err() {
+///     // Handle as appropriate, e.g., log a warning.
+/// }
 /// uart.send_bytes_exact(b"hello world!");
 /// ```
 ///
@@ -541,9 +547,9 @@ impl<B: Backend> Uart16550<B> {
     /// have been enabled but before this function returns, for example because
     /// data arrives asynchronously.
     ///
-    /// [`IER::THR_EMPTY`] is a special case. If enabled, it will immediately
-    /// trigger an interrupt because the transmitter is guaranteed to be empty
-    /// when the configured interrupts are enabled at the end of initialization.
+    /// [`IER::THR_EMPTY`] is a special case. As the transmitter is empty at the
+    /// end of initialization, enabling it immediately triggers an interrupt on
+    /// most devices, but not on all. See [`Self::enable_interrupts`].
     ///
     /// **Recommendation:** Therefore, when using the device in an
     /// interrupt-driven setup, it is safest to call this function from an
@@ -1244,7 +1250,9 @@ impl<B: Backend> Uart16550<B> {
 
     /* ----- Misc ----------------------------------------------------------- */
 
-    /// Returns the config from the last call to [`Self::init`].
+    /// Returns the active config: the one from the last call to [`Self::init`],
+    /// with the interrupts updated by [`Self::enable_interrupts`] and
+    /// [`Self::disable_interrupts`].
     ///
     /// To get the values that are currently in the registers, consider using
     /// [`Self::config_register_dump`].
