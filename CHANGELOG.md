@@ -49,6 +49,9 @@
   enabled, e.g., not on a 16450, and sending no longer overruns the transmitter
   then. The new `Uart16550::fifo_enabled()` reports it, and the new
   `ISR::fifo_enabled()` is a convenience getter for the FIFO bits.
+- Fixed: Sending and receiving no longer lose LSR error flags. The driver
+  keeps them, and `lsr()` reports them in addition to the current register
+  value.
 
 ## 0.8.1 - 2026-09-14
 

@@ -659,7 +659,7 @@ impl<B: Backend> Uart16550<B> {
         // The data is also drained if no one is connected to the port, so we
         // can't get stuck here.
         loop {
-            let lsr = self.lsr();
+            let lsr = self.read_lsr();
             if lsr.contains(LSR::TRANSMITTER_EMPTY) {
                 break;
             } else {
@@ -832,7 +832,7 @@ impl<B: Backend> Uart16550<B> {
     /// This differs from [`Self::check_connected`] as it only checks the
     /// internal in-buffer without checking for an established connection.
     pub fn ready_to_receive(&mut self) -> Result<(), ByteReceiveError> {
-        let lsr = self.lsr();
+        let lsr = self.read_lsr();
 
         if !lsr.contains(LSR::DATA_READY) {
             return Err(ByteReceiveError);
@@ -851,7 +851,7 @@ impl<B: Backend> Uart16550<B> {
     /// data can be written (e.g., internal FIFO is empty) without checking for
     /// an established connection.
     pub fn ready_to_send(&mut self) -> Result<(), ByteSendError> {
-        let lsr = self.lsr();
+        let lsr = self.read_lsr();
 
         // In FIFO mode, this bit is set when the transmitter’s FIFO is
         // completely empty, being 0 if there is at least one byte in the
@@ -1030,11 +1030,17 @@ impl<B: Backend> Uart16550<B> {
 
     /// Fetches the current value from the [`LSR`].
     ///
+    /// The value also contains the error flags that the driver observed in its
+    /// internal reads since the last call or [`Self::init`], e.g., when
+    /// sending, but couldn't report.
+    ///
     /// # Side Effects
     ///
     /// Reading the [`LSR`] clears a pending receiver line status interrupt.
     /// It also clears the [`LSR::OVERRUN_ERROR`], [`LSR::PARITY_ERROR`],
-    /// [`LSR::FRAMING_ERROR`], and [`LSR::BREAK_INTERRUPT`] status flags.
+    /// [`LSR::FRAMING_ERROR`], and [`LSR::BREAK_INTERRUPT`] status flags,
+    /// including the ones observed earlier. Hence, the next call only reports
+    /// them if they occur again.
     pub fn lsr(&mut self) -> LSR {
         let lsr = self.read_lsr() | self.lsr_saved;
         self.lsr_saved = LSR::empty();
@@ -1187,7 +1193,7 @@ impl<B: Backend> Uart16550<B> {
             isr: self.isr(),
             lcr: self.lcr(),
             mcr: self.mcr(),
-            lsr: self.lsr(),
+            lsr: self.read_lsr() | self.lsr_saved,
             msr: self.msr(),
             spr: self.spr(),
             dll,
