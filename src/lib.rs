@@ -703,12 +703,28 @@ impl<B: Backend> Uart16550<B> {
     ///
     /// - No other data **must** be send over the device while this test isn't
     ///   finished
-    /// - The FIFO will be re-configured and activated by this test.
+    /// - The FIFO will be re-configured by this test.
     // NEVER CHANGE this function without testing on real hardware!
     pub fn test_loopback(&mut self) -> Result<(), LoopbackError> {
         let old_mcr = self.mcr();
+        let old_ier = self.ier();
 
-        // We also disable interrupts here.
+        // Let a running transmission finish, so it isn't cut off or looped
+        // back.
+        while !self.read_lsr().contains(LSR::TRANSMITTER_EMPTY) {
+            hint::spin_loop();
+        }
+        // Errors caused by the test itself are no news for the caller.
+        let old_lsr_saved = self.lsr_saved;
+        let old_msr = self.read_msr();
+
+        // Disable interrupts, so that no interrupt handler takes the
+        // looped-back data.
+        // SAFETY: We operate on valid register addresses.
+        unsafe {
+            self.backend.write(offsets::IER as u8, 0);
+        }
+
         // SAFETY: We operate on valid register addresses.
         unsafe {
             self.backend
@@ -721,10 +737,45 @@ impl<B: Backend> Uart16550<B> {
         // mode.
         // SAFETY: We operate on valid register addresses.
         unsafe {
+            // Entering and leaving loopback mode changes the modem lines.
+            // Clear the resulting change indicators, which would otherwise
+            // raise a spurious modem status interrupt. Keep OUT2 cleared
+            // meanwhile, so this doesn't briefly assert the IRQ line.
+            let mcr = old_mcr - MCR::OUT_2_INT_ENABLE;
+            self.backend.write(offsets::MCR as u8, mcr.bits());
+            let msr = MSR::from_bits_retain(self.backend.read(offsets::MSR as u8));
             self.backend.write(offsets::MCR as u8, old_mcr.bits());
+            self.msr_saved |= Self::modem_line_changes(old_msr, msr);
         }
 
+        // SAFETY: We operate on valid register addresses.
+        unsafe {
+            self.backend.write(offsets::IER as u8, old_ier.bits());
+        }
+        self.lsr_saved = old_lsr_saved;
+
         result
+    }
+
+    /// Returns the change indicators for the modem lines that changed from
+    /// `old` to `new`.
+    fn modem_line_changes(old: MSR, new: MSR) -> MSR {
+        let changed = old ^ new;
+        let mut changes = MSR::empty();
+        if changed.contains(MSR::CTS) {
+            changes |= MSR::DELTA_CTS;
+        }
+        if changed.contains(MSR::DSR) {
+            changes |= MSR::DELTA_DSR;
+        }
+        if changed.contains(MSR::CD) {
+            changes |= MSR::DELTA_CD;
+        }
+        // Only the trailing edge of RI is reported.
+        if changed.contains(MSR::RI) && !new.contains(MSR::RI) {
+            changes |= MSR::TRAILING_EDGE_RI;
+        }
+        changes
     }
 
     /// The part of [`Self::test_loopback`] that runs in loopback mode.
@@ -763,15 +814,21 @@ impl<B: Backend> Uart16550<B> {
         }
 
         // Now check sending and reading a whole message.
-        // This requires the FIFO to be activated.
         {
-            self.send_bytes_exact(&TEST_MESSAGE);
-
             let mut read_buffer = [0_u8; TEST_MESSAGE.len()];
             // Tests on real hardware showed that there can be a short delay
             // until we can read the data. Therefore, we use the blocking
             // API rather than `receive_bytes()`.
-            self.receive_bytes_exact(&mut read_buffer);
+            if self.fifo_enabled {
+                self.send_bytes_exact(&TEST_MESSAGE);
+                self.receive_bytes_exact(&mut read_buffer);
+            } else {
+                // Without FIFO, the receiver holds only one byte.
+                for (byte, read) in TEST_MESSAGE.iter().zip(&mut read_buffer) {
+                    self.send_bytes_exact(core::slice::from_ref(byte));
+                    self.receive_bytes_exact(core::slice::from_mut(read));
+                }
+            }
 
             if read_buffer != TEST_MESSAGE {
                 return Err(LoopbackError::UnexpectedLoopbackMsg {
