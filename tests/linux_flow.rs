@@ -6,8 +6,10 @@
 //! the 16550A datasheet and what Linux relies on instead.
 
 use std::collections::VecDeque;
-use uart_16550::Uart16550;
 use uart_16550::backend::Backend;
+use uart_16550::spec::CLK_FREQUENCY_HZ;
+use uart_16550::spec::registers::{FifoTriggerLevel, IER, Parity, WordLength};
+use uart_16550::{BaudRate, Config, Uart16550};
 
 /// A model of a 16550A UART.
 ///
@@ -641,4 +643,149 @@ fn model_passes_linux_thre_tests() {
     assert_ne!(serial_in(&mut uart, LSR) & LSR_TEMT, 0);
     assert_eq!(serial_in(&mut uart, IIR) & IIR_NO_INT, 0);
     serial_out(&mut uart, IER, 0);
+}
+
+/* ----- Startup ------------------------------------------------------------ */
+
+/// The default configuration of Linux' serial console, see
+/// `serial8250_console_setup()`: 9600 baud, 8N1, and no flow control. The FIFO
+/// uses the RX trigger level Linux uses for a 16550A (`UART_FCR_R_TRIG_10`).
+fn linux_config() -> Config {
+    Config {
+        interrupts: IER::empty(),
+        frequency: CLK_FREQUENCY_HZ,
+        prescaler_division_factor: None,
+        fifo_trigger_level: Some(FifoTriggerLevel::Eight),
+        baud_rate: BaudRate::Baud9600,
+        data_bits: WordLength::EightBits,
+        extra_stop_bits: false,
+        parity: Parity::Disabled,
+        check_cts_before_sending: false,
+    }
+}
+
+/// Like [`linux_config`], but without FIFO, like on a 16450.
+fn config_without_fifo() -> Config {
+    Config {
+        fifo_trigger_level: None,
+        ..linux_config()
+    }
+}
+
+/// After `init()`, the device is in the state Linux' `serial8250_do_startup()`
+/// and `serial8250_do_set_termios()` leave it in.
+#[test]
+fn startup_leaves_device_configured() {
+    let mut uart = new_uart();
+    uart.init(linux_config()).unwrap();
+
+    let dev = uart.backend();
+    // 9600 baud at the standard 1.8432 MHz clock.
+    assert_eq!(dev.divisor(), 12);
+    assert_eq!(dev.peek(LCR), LCR_WLEN8, "8N1, DLAB cleared");
+    assert!(dev.fifo_enabled());
+    assert_eq!(dev.peek(IIR), IIR_FIFO_ENABLED | IIR_NO_INT);
+    assert_eq!(dev.peek(MCR), MCR_DTR | MCR_RTS | MCR_OUT2);
+    assert_eq!(dev.peek(IER), 0);
+    assert_eq!(dev.peek(LSR), LSR_THRE | LSR_TEMT);
+    assert!(!dev.irq());
+}
+
+/// Like Linux, `init()` discards data received before, e.g., while an earlier
+/// boot stage used the device.
+#[test]
+fn startup_discards_stale_rx_data() {
+    let mut uart = new_uart();
+    uart.backend_mut().inject_rx(b"stale");
+    uart.init(linux_config()).unwrap();
+
+    assert_eq!(uart.backend().rx_level(), 0);
+    assert!(uart.try_receive_byte().is_err());
+}
+
+/// Like [`startup_discards_stale_rx_data`], but without FIFO. FCR can't clear
+/// anything then, so the data must be read out, as Linux does by reading RX.
+#[test]
+fn startup_discards_stale_rx_data_without_fifo() {
+    let mut uart = new_uart();
+    uart.backend_mut().inject_rx(b"x");
+    uart.init(config_without_fifo()).unwrap();
+
+    assert_eq!(uart.backend().rx_level(), 0);
+    assert!(uart.try_receive_byte().is_err());
+}
+
+/// Like Linux, `init()` clears pending line and modem status conditions, so
+/// enabling interrupts doesn't raise stale ones.
+#[test]
+fn startup_clears_stale_interrupt_conditions() {
+    let mut uart = new_uart();
+    let dev = uart.backend_mut();
+    // An overrun from before, in the 1-byte RBR of the reset device, and a
+    // modem line change.
+    dev.inject_rx(&[0; 2]);
+    dev.set_modem_inputs(MSR_CTS | MSR_DSR);
+
+    let config = Config {
+        interrupts: IER::DATA_READY | IER::RECEIVER_LINE_STATUS | IER::MODEM_STATUS,
+        ..linux_config()
+    };
+    uart.init(config).unwrap();
+
+    let dev = uart.backend();
+    assert_eq!(dev.peek(IER), IER_RDI | IER_RLSI | IER_MSI);
+    assert_eq!(dev.peek(IIR), IIR_FIFO_ENABLED | IIR_NO_INT);
+    assert!(!dev.irq());
+}
+
+/// An invalid baud rate is reported, and the device stays usable: DLAB is
+/// clear, so offsets 0 and 1 still address the data registers and IER.
+#[test]
+fn startup_with_invalid_baud_rate_keeps_dlab_clear() {
+    let mut uart = new_uart();
+    let config = Config {
+        baud_rate: BaudRate::Custom(7211),
+        ..linux_config()
+    };
+
+    assert!(uart.init(config).is_err());
+    assert_eq!(uart.backend().peek(LCR) & LCR_DLAB, 0);
+}
+
+/// A baud rate too low for the 16-bit divisor is reported as error.
+#[test]
+fn startup_with_too_low_baud_rate_fails_gracefully() {
+    let mut uart = new_uart();
+    let config = Config {
+        baud_rate: BaudRate::Custom(1),
+        ..linux_config()
+    };
+
+    assert!(uart.init(config).is_err());
+}
+
+/// The presence check doesn't destroy the scratch register, like Linux' 8250
+/// scratch test, which restores it.
+#[test]
+fn startup_preserves_scratch_register() {
+    let mut uart = new_uart();
+    serial_out(&mut uart, SCR, 0x5a);
+
+    uart.init(linux_config()).unwrap();
+
+    assert_eq!(uart.backend().peek(SCR), 0x5a);
+}
+
+/// Like Linux' `autoconfig()`, `init()` detects whether the FIFOs are really
+/// enabled, e.g., not on a 16450, which has none.
+#[test]
+fn startup_detects_fifo() {
+    let mut uart = new_uart();
+    uart.init(linux_config()).unwrap();
+    assert!(uart.fifo_enabled());
+
+    // SAFETY: The backend is a model; there is no real device.
+    let mut uart = unsafe { Uart16550::new_with_backend(Device16550::new_16450()) };
+    uart.init(linux_config()).unwrap();
+    assert!(!uart.fifo_enabled());
 }
