@@ -110,8 +110,11 @@
 //! //                                 ^ or `new_port(0x3f8)`
 //! uart.init(Config::default()).expect("should init device successfully");
 //! uart.test_loopback().expect("should have working loopback mode");
-//! // Note: Might fail on real hardware with some null-modem cables
-//! uart.check_connected().expect("should have physically connected receiver");
+//! // Note: Might fail on real hardware with some null-modem cables, e.g.,
+//! // without DSR and CTS. Sending and receiving data can still work then.
+//! if uart.check_connected().is_err() {
+//!     // Handle as appropriate, e.g., log a warning.
+//! }
 //! uart.send_bytes_exact(b"hello world!");
 //! ```
 //!
@@ -254,8 +257,11 @@ mod tty;
 /// //                                 ^ or `new_port(0x3f8)`
 /// uart.init(Config::default()).expect("should init device successfully");
 /// uart.test_loopback().expect("should have working loopback mode");
-/// // Note: Might fail on real hardware with some null-modem cables
-/// uart.check_connected().expect("should have physically connected receiver");
+/// // Note: Might fail on real hardware with some null-modem cables, e.g.,
+/// // without DSR and CTS. Sending and receiving data can still work then.
+/// if uart.check_connected().is_err() {
+///     // Handle as appropriate, e.g., log a warning.
+/// }
 /// uart.send_bytes_exact(b"hello world!");
 /// ```
 ///
