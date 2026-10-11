@@ -305,6 +305,9 @@ mod tty;
 /// This is a **synchronous** driver that exposes interrupt configuration,
 /// making it possible to build an asynchronous, interrupt-driven driver on top.
 ///
+/// Interrupts can be enabled already in [`Uart16550::init()`] via
+/// [`Config::interrupts`], or later via [`Uart16550::enable_interrupts()`].
+///
 /// # Hints for Usage on Real Hardware
 ///
 /// Please note that real hardware often behaves quite differently. Just because
@@ -640,7 +643,9 @@ impl<B: Backend> Uart16550<B> {
             // (assert MSR::CTS on remote)
             mcr |= MCR::RTS;
             // enable interrupt routing to the interrupt controller
-            // (so far individual interrupts are still disabled in IER)
+            // (so far individual interrupts are still disabled in IER).
+            // The driver controls interrupts only via IER and keeps OUT2
+            // set.
             mcr |= MCR::OUT_2_INT_ENABLE;
 
             self.backend.write(offsets::MCR as u8, mcr.bits());
