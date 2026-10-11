@@ -12,6 +12,7 @@ extend-ignore-identifiers-re = [
 
 [default.extend-words]
 THR = "THR"
+THRE = "THRE"
 
 [default.extend-identifiers]
 
