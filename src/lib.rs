@@ -323,6 +323,8 @@ pub struct Uart16550<B: Backend> {
     fifo_enabled: bool,
     /// LSR error bits that internal reads observed but couldn't report.
     lsr_saved: LSR,
+    /// MSR delta bits that internal reads observed but couldn't report.
+    msr_saved: MSR,
 }
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64", doc))]
@@ -491,6 +493,7 @@ impl<B: Backend> Uart16550<B> {
             // Until init() checks the hardware, assume the default config.
             fifo_enabled: Config::DEFAULT.fifo_trigger_level.is_some(),
             lsr_saved: LSR::empty(),
+            msr_saved: MSR::empty(),
         }
     }
 
@@ -676,6 +679,7 @@ impl<B: Backend> Uart16550<B> {
             let _ = self.backend.read(offsets::MSR as u8);
         }
         self.lsr_saved = LSR::empty();
+        self.msr_saved = MSR::empty();
 
         // Set interrupts as the last step.
         // SAFETY: We operate on valid register addresses.
@@ -1058,9 +1062,23 @@ impl<B: Backend> Uart16550<B> {
     /// Reading the [`MSR`] clears a pending modem status interrupt and clears
     /// the modem status change indicators in bits 0 through 3.
     pub fn msr(&mut self) -> MSR {
+        let msr = self.read_msr() | self.msr_saved;
+        self.msr_saved = MSR::empty();
+        msr
+    }
+
+    /// Reads the [`MSR`] and saves its change indicators for [`Self::msr`],
+    /// as the read clears them.
+    fn read_msr(&mut self) -> MSR {
+        const CHANGE_INDICATORS: MSR = MSR::DELTA_CTS
+            .union(MSR::DELTA_DSR)
+            .union(MSR::TRAILING_EDGE_RI)
+            .union(MSR::DELTA_CD);
         // SAFETY: We operate on valid register addresses.
         let val = unsafe { self.backend.read(offsets::MSR as u8) };
-        MSR::from_bits_retain(val)
+        let msr = MSR::from_bits_retain(val);
+        self.msr_saved |= msr & CHANGE_INDICATORS;
+        msr
     }
 
     /// Fetches the current value from the [`SPR`].
