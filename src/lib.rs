@@ -321,6 +321,10 @@ pub struct Uart16550<B: Backend> {
     config: Config,
     /// Whether the FIFOs are enabled in hardware.
     fifo_enabled: bool,
+    /// LSR error bits that internal reads observed but couldn't report.
+    lsr_saved: LSR,
+    /// MSR delta bits that internal reads observed but couldn't report.
+    msr_saved: MSR,
 }
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64", doc))]
@@ -488,6 +492,8 @@ impl<B: Backend> Uart16550<B> {
             config: Config::DEFAULT,
             // Until init() checks the hardware, assume the default config.
             fifo_enabled: Config::DEFAULT.fifo_trigger_level.is_some(),
+            lsr_saved: LSR::empty(),
+            msr_saved: MSR::empty(),
         }
     }
 
@@ -653,7 +659,7 @@ impl<B: Backend> Uart16550<B> {
         // The data is also drained if no one is connected to the port, so we
         // can't get stuck here.
         loop {
-            let lsr = self.lsr();
+            let lsr = self.read_lsr();
             if lsr.contains(LSR::TRANSMITTER_EMPTY) {
                 break;
             } else {
@@ -672,6 +678,8 @@ impl<B: Backend> Uart16550<B> {
             // Clear modem-status deltas.
             let _ = self.backend.read(offsets::MSR as u8);
         }
+        self.lsr_saved = LSR::empty();
+        self.msr_saved = MSR::empty();
 
         // Set interrupts as the last step.
         // SAFETY: We operate on valid register addresses.
@@ -787,9 +795,7 @@ impl<B: Backend> Uart16550<B> {
     ///
     /// [`InterruptType::ModemStatus`]: crate::spec::registers::InterruptType::ModemStatus
     pub fn check_connected(&mut self) -> Result<(), RemoteReadyToReceiveError> {
-        // SAFETY: We operate on valid register addresses.
-        let msr = unsafe { self.backend.read(offsets::MSR as u8) };
-        let msr = MSR::from_bits_retain(msr);
+        let msr = self.read_msr();
         // DSR reflects the remote's MCR::DTR. Not asserted means the remote
         // is absent, unpowered, or uninitialized.
         if !msr.contains(MSR::DSR) {
@@ -824,7 +830,7 @@ impl<B: Backend> Uart16550<B> {
     /// This differs from [`Self::check_connected`] as it only checks the
     /// internal in-buffer without checking for an established connection.
     pub fn ready_to_receive(&mut self) -> Result<(), ByteReceiveError> {
-        let lsr = self.lsr();
+        let lsr = self.read_lsr();
 
         if !lsr.contains(LSR::DATA_READY) {
             return Err(ByteReceiveError);
@@ -843,7 +849,7 @@ impl<B: Backend> Uart16550<B> {
     /// data can be written (e.g., internal FIFO is empty) without checking for
     /// an established connection.
     pub fn ready_to_send(&mut self) -> Result<(), ByteSendError> {
-        let lsr = self.lsr();
+        let lsr = self.read_lsr();
 
         // In FIFO mode, this bit is set when the transmitter’s FIFO is
         // completely empty, being 0 if there is at least one byte in the
@@ -857,7 +863,7 @@ impl<B: Backend> Uart16550<B> {
             // The CTS line is meaningless when in loopback mode.
             let mcr = self.mcr();
             if !mcr.contains(MCR::LOOP_BACK) {
-                let msr = self.msr();
+                let msr = self.read_msr();
 
                 if !msr.contains(MSR::CTS) {
                     return Err(ByteSendError::RemoteNotClearToSend);
@@ -1022,27 +1028,68 @@ impl<B: Backend> Uart16550<B> {
 
     /// Fetches the current value from the [`LSR`].
     ///
+    /// The value also contains the error flags that the driver observed in its
+    /// internal reads since the last call or [`Self::init`], e.g., when
+    /// sending, but couldn't report.
+    ///
     /// # Side Effects
     ///
     /// Reading the [`LSR`] clears a pending receiver line status interrupt.
     /// It also clears the [`LSR::OVERRUN_ERROR`], [`LSR::PARITY_ERROR`],
-    /// [`LSR::FRAMING_ERROR`], and [`LSR::BREAK_INTERRUPT`] status flags.
+    /// [`LSR::FRAMING_ERROR`], and [`LSR::BREAK_INTERRUPT`] status flags,
+    /// including the ones observed earlier. Hence, the next call only reports
+    /// them if they occur again.
     pub fn lsr(&mut self) -> LSR {
+        let lsr = self.read_lsr() | self.lsr_saved;
+        self.lsr_saved = LSR::empty();
+        lsr
+    }
+
+    /// Reads the [`LSR`] and saves its error flags for [`Self::lsr`], as the
+    /// read clears them.
+    fn read_lsr(&mut self) -> LSR {
+        const ERROR_FLAGS: LSR = LSR::OVERRUN_ERROR
+            .union(LSR::PARITY_ERROR)
+            .union(LSR::FRAMING_ERROR)
+            .union(LSR::BREAK_INTERRUPT);
         // SAFETY: We operate on valid register addresses.
         let val = unsafe { self.backend.read(offsets::LSR as u8) };
-        LSR::from_bits_retain(val)
+        let lsr = LSR::from_bits_retain(val);
+        self.lsr_saved |= lsr & ERROR_FLAGS;
+        lsr
     }
 
     /// Fetches the current value from the [`MSR`].
     ///
+    /// The value also contains the modem status change indicators that the
+    /// driver observed in its internal reads since the last call or
+    /// [`Self::init`], e.g., when checking CTS before sending, but couldn't
+    /// report.
+    ///
     /// # Side Effects
     ///
     /// Reading the [`MSR`] clears a pending modem status interrupt and clears
-    /// the modem status change indicators in bits 0 through 3.
+    /// the modem status change indicators in bits 0 through 3, including the
+    /// ones observed earlier. Hence, the next call only reports changes that
+    /// happen after this call.
     pub fn msr(&mut self) -> MSR {
+        let msr = self.read_msr() | self.msr_saved;
+        self.msr_saved = MSR::empty();
+        msr
+    }
+
+    /// Reads the [`MSR`] and saves its change indicators for [`Self::msr`],
+    /// as the read clears them.
+    fn read_msr(&mut self) -> MSR {
+        const CHANGE_INDICATORS: MSR = MSR::DELTA_CTS
+            .union(MSR::DELTA_DSR)
+            .union(MSR::TRAILING_EDGE_RI)
+            .union(MSR::DELTA_CD);
         // SAFETY: We operate on valid register addresses.
         let val = unsafe { self.backend.read(offsets::MSR as u8) };
-        MSR::from_bits_retain(val)
+        let msr = MSR::from_bits_retain(val);
+        self.msr_saved |= msr & CHANGE_INDICATORS;
+        msr
     }
 
     /// Fetches the current value from the [`SPR`].
@@ -1140,10 +1187,18 @@ impl<B: Backend> Uart16550<B> {
 
     /// Queries the device and returns a [`ConfigRegisterDump`].
     ///
-    /// # Caution
+    /// # Side Effects
     ///
-    /// Reading on some registers may have side effects, for example in the
-    /// [`LSR`].
+    /// Reading the registers has side effects:
+    /// - Reading the [`ISR`] acknowledges a pending
+    ///   [`InterruptType::TransmitterHoldingRegisterEmpty`] interrupt.
+    /// - Reading the [`LSR`] and [`MSR`] clears their error flags and change
+    ///   indicators in the hardware. The driver keeps them for [`Self::lsr`]
+    ///   and [`Self::msr`], and the dump contains them as well.
+    /// - Reading [`DLL`] and [`DLM`] requires setting the DLAB bit in the
+    ///   [`LCR`]. The original [`LCR`] is restored afterwards.
+    ///
+    /// [`InterruptType::TransmitterHoldingRegisterEmpty`]: crate::spec::registers::InterruptType::TransmitterHoldingRegisterEmpty
     pub fn config_register_dump(&mut self) -> ConfigRegisterDump {
         let (dll, dlm) = self.dll_dlm();
         ConfigRegisterDump {
@@ -1151,8 +1206,8 @@ impl<B: Backend> Uart16550<B> {
             isr: self.isr(),
             lcr: self.lcr(),
             mcr: self.mcr(),
-            lsr: self.lsr(),
-            msr: self.msr(),
+            lsr: self.read_lsr() | self.lsr_saved,
+            msr: self.read_msr() | self.msr_saved,
             spr: self.spr(),
             dll,
             dlm,

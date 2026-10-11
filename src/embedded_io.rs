@@ -34,7 +34,7 @@ impl<B: Backend> Write for Uart16550<B> {
     /// flow control.
     fn flush(&mut self) -> Result<(), Self::Error> {
         // Wait until the transmitter sent everything, like Linux' tcdrain().
-        while !self.lsr().contains(LSR::TRANSMITTER_EMPTY) {
+        while !self.read_lsr().contains(LSR::TRANSMITTER_EMPTY) {
             hint::spin_loop();
         }
         Ok(())
