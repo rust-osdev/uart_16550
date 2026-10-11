@@ -321,6 +321,8 @@ pub struct Uart16550<B: Backend> {
     config: Config,
     /// Whether the FIFOs are enabled in hardware.
     fifo_enabled: bool,
+    /// LSR error bits that internal reads observed but couldn't report.
+    lsr_saved: LSR,
 }
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64", doc))]
@@ -488,6 +490,7 @@ impl<B: Backend> Uart16550<B> {
             config: Config::DEFAULT,
             // Until init() checks the hardware, assume the default config.
             fifo_enabled: Config::DEFAULT.fifo_trigger_level.is_some(),
+            lsr_saved: LSR::empty(),
         }
     }
 
@@ -672,6 +675,7 @@ impl<B: Backend> Uart16550<B> {
             // Clear modem-status deltas.
             let _ = self.backend.read(offsets::MSR as u8);
         }
+        self.lsr_saved = LSR::empty();
 
         // Set interrupts as the last step.
         // SAFETY: We operate on valid register addresses.
@@ -1028,9 +1032,23 @@ impl<B: Backend> Uart16550<B> {
     /// It also clears the [`LSR::OVERRUN_ERROR`], [`LSR::PARITY_ERROR`],
     /// [`LSR::FRAMING_ERROR`], and [`LSR::BREAK_INTERRUPT`] status flags.
     pub fn lsr(&mut self) -> LSR {
+        let lsr = self.read_lsr() | self.lsr_saved;
+        self.lsr_saved = LSR::empty();
+        lsr
+    }
+
+    /// Reads the [`LSR`] and saves its error flags for [`Self::lsr`], as the
+    /// read clears them.
+    fn read_lsr(&mut self) -> LSR {
+        const ERROR_FLAGS: LSR = LSR::OVERRUN_ERROR
+            .union(LSR::PARITY_ERROR)
+            .union(LSR::FRAMING_ERROR)
+            .union(LSR::BREAK_INTERRUPT);
         // SAFETY: We operate on valid register addresses.
         let val = unsafe { self.backend.read(offsets::LSR as u8) };
-        LSR::from_bits_retain(val)
+        let lsr = LSR::from_bits_retain(val);
+        self.lsr_saved |= lsr & ERROR_FLAGS;
+        lsr
     }
 
     /// Fetches the current value from the [`MSR`].
