@@ -52,6 +52,9 @@
 - Fixed: Sending and receiving no longer lose LSR error flags. The driver
   keeps them, and `lsr()` reports them in addition to the current register
   value.
+- Fixed: The CTS check before sending and `check_connected()` no longer lose
+  MSR change indicators. The driver keeps them, and `msr()` reports them in
+  addition to the current register value.
 
 ## 0.8.1 - 2026-09-14
 

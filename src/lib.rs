@@ -795,9 +795,7 @@ impl<B: Backend> Uart16550<B> {
     ///
     /// [`InterruptType::ModemStatus`]: crate::spec::registers::InterruptType::ModemStatus
     pub fn check_connected(&mut self) -> Result<(), RemoteReadyToReceiveError> {
-        // SAFETY: We operate on valid register addresses.
-        let msr = unsafe { self.backend.read(offsets::MSR as u8) };
-        let msr = MSR::from_bits_retain(msr);
+        let msr = self.read_msr();
         // DSR reflects the remote's MCR::DTR. Not asserted means the remote
         // is absent, unpowered, or uninitialized.
         if !msr.contains(MSR::DSR) {
@@ -865,7 +863,7 @@ impl<B: Backend> Uart16550<B> {
             // The CTS line is meaningless when in loopback mode.
             let mcr = self.mcr();
             if !mcr.contains(MCR::LOOP_BACK) {
-                let msr = self.msr();
+                let msr = self.read_msr();
 
                 if !msr.contains(MSR::CTS) {
                     return Err(ByteSendError::RemoteNotClearToSend);
@@ -1063,10 +1061,17 @@ impl<B: Backend> Uart16550<B> {
 
     /// Fetches the current value from the [`MSR`].
     ///
+    /// The value also contains the modem status change indicators that the
+    /// driver observed in its internal reads since the last call or
+    /// [`Self::init`], e.g., when checking CTS before sending, but couldn't
+    /// report.
+    ///
     /// # Side Effects
     ///
     /// Reading the [`MSR`] clears a pending modem status interrupt and clears
-    /// the modem status change indicators in bits 0 through 3.
+    /// the modem status change indicators in bits 0 through 3, including the
+    /// ones observed earlier. Hence, the next call only reports changes that
+    /// happen after this call.
     pub fn msr(&mut self) -> MSR {
         let msr = self.read_msr() | self.msr_saved;
         self.msr_saved = MSR::empty();
@@ -1194,7 +1199,7 @@ impl<B: Backend> Uart16550<B> {
             lcr: self.lcr(),
             mcr: self.mcr(),
             lsr: self.read_lsr() | self.lsr_saved,
-            msr: self.msr(),
+            msr: self.read_msr() | self.msr_saved,
             spr: self.spr(),
             dll,
             dlm,
