@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Conservative ACPI SPCR discovery for firmware-described serial consoles.
 //!
 //! In practice SPCR matters on three kinds of machines: x86 servers with

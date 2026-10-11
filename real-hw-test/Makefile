@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
 CARGO ?= cargo
 ARCH ?= x86_64
 ARCHS := x86_64 aarch64

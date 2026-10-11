@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Operator-driven cable, modem-status, reconnect, transmit, and receive checks.
 //!
 //! Polling keeps interrupts out of scope while a human validates the physical

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Screen and file diagnostics for one test run.
 //!
 //! Persisting the screen transcript makes a hardware failure inspectable after

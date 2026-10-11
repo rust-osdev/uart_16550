@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Driver for QEMU's debugcon device.
 
 use core::fmt::Write;

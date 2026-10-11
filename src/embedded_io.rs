@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! API glue for [`Uart16550`] with [`embedded_io`].
 
 use core::convert::Infallible;

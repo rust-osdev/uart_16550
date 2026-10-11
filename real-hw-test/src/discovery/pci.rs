@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Conservative PCI serial-controller discovery through UEFI root bridges.
 //!
 //! Conservative means that only endpoints whose class code and programming

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 #![no_main]
 #![no_std]
 #![deny(clippy::undocumented_unsafe_blocks)]

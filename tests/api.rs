@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use core::fmt::Write;
 use core::num::NonZeroUsize;
 use core::ptr::{self, NonNull};

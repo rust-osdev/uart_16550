@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! x86 Port IO backend implementation.
 
 use super::{Backend, assert_offset};

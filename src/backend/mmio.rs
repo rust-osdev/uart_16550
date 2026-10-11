@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! MMIO backend implementation.
 
 use super::{Backend, assert_offset};

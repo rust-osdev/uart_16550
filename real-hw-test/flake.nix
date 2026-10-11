@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
 {
   description = "uart_16550 UEFI real-hardware test";
 
