@@ -6,7 +6,7 @@ use std::sync::Mutex;
 use uart_16550::backend::PioBackend;
 use uart_16550::backend::{Backend, MmioBackend};
 use uart_16550::spec::NUM_REGISTERS;
-use uart_16550::spec::registers::{LCR, LSR, offsets};
+use uart_16550::spec::registers::{FCR, ISR, LCR, LSR, offsets};
 use uart_16550::{Config, Uart16550, Uart16550Tty};
 
 /// This ensures that all necessary helper types to create bindings are publicly
@@ -80,12 +80,15 @@ fn test_static_tty() {
 /// A custom backend operating on an in-memory register file.
 ///
 /// Reads and writes are passed through, except for the line status register,
-/// which always reports an empty transmitter. Data writes are recorded unless
-/// the divisor latch is selected.
+/// which always reports an empty transmitter, and the interrupt status
+/// register, which reports the FIFO state. Data writes are recorded unless the
+/// divisor latch is selected.
 #[derive(Debug)]
 struct RegisterFileBackend {
     registers: [u8; NUM_REGISTERS],
     sent: Vec<u8>,
+    /// Whether the device has FIFOs. Without, it behaves like a 16450.
+    has_fifo: bool,
 }
 
 impl RegisterFileBackend {
@@ -93,6 +96,14 @@ impl RegisterFileBackend {
         Self {
             registers: [0; NUM_REGISTERS],
             sent: Vec::new(),
+            has_fifo: true,
+        }
+    }
+
+    fn without_fifo() -> Self {
+        Self {
+            has_fifo: false,
+            ..Self::new()
         }
     }
 }
@@ -101,6 +112,16 @@ impl Backend for RegisterFileBackend {
     unsafe fn read(&mut self, register_offset: u8) -> u8 {
         if register_offset == offsets::LSR as u8 {
             return (LSR::THR_EMPTY | LSR::TRANSMITTER_EMPTY).bits();
+        }
+        if register_offset == offsets::ISR as u8 {
+            // The register file holds the last FCR write at this offset.
+            let fifo_enabled =
+                FCR::from_bits_retain(self.registers[offsets::FCR]).contains(FCR::FIFO_ENABLE);
+            return if self.has_fifo && fifo_enabled {
+                (ISR::INTERRUPT_STATUS | ISR::FIFOS_ENABLED0 | ISR::FIFOS_ENABLED1).bits()
+            } else {
+                ISR::INTERRUPT_STATUS.bits()
+            };
         }
         self.registers[usize::from(register_offset)]
     }
@@ -112,6 +133,23 @@ impl Backend for RegisterFileBackend {
         }
         self.registers[usize::from(register_offset)] = value;
     }
+}
+
+/// The driver detects whether the FIFOs are really enabled, and sends one byte
+/// at a time without them, e.g., on a 16450.
+#[test]
+fn test_fifo_detection() {
+    // SAFETY: The backend operates on an in-memory register file.
+    let mut uart = unsafe { Uart16550::new_with_backend(RegisterFileBackend::new()) };
+    uart.init(Config::default()).unwrap();
+    assert!(uart.fifo_enabled());
+    assert_eq!(uart.send_bytes(b"hello"), 5);
+
+    // SAFETY: The backend operates on an in-memory register file.
+    let mut uart = unsafe { Uart16550::new_with_backend(RegisterFileBackend::without_fifo()) };
+    uart.init(Config::default()).unwrap();
+    assert!(!uart.fifo_enabled());
+    assert_eq!(uart.send_bytes(b"hello"), 1);
 }
 
 /// A custom backend can be used for the full device lifecycle, including a

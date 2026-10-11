@@ -225,7 +225,10 @@ pub mod registers {
 
         /// Interrupt Status Register (ISR).
         ///
+        /// Also called Interrupt Identification Register (IIR).
+        ///
         /// This register is used on **reads** from offset `2`.
+        #[doc(alias = "IIR")]
         pub const ISR: usize = 2;
 
         /// FIFO Control Register (FCR).
@@ -312,8 +315,11 @@ pub mod registers {
     bitflags! {
         /// Typing of the Interrupt Status Register (ISR).
         ///
+        /// Also called Interrupt Identification Register (IIR).
+        ///
         /// **Read-only** register at offset [`offsets::ISR`] for identifying
         /// the interrupt with the highest priority that is currently pending.
+        #[doc(alias = "IIR")]
         #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
         pub struct ISR: u8 {
             /// Interrupt status bit.
@@ -368,6 +374,12 @@ pub mod registers {
         #[must_use]
         pub const fn has_pending_interrupt(self) -> bool {
             !self.contains(Self::INTERRUPT_STATUS)
+        }
+
+        /// Returns true if the FIFO is enabled and implemented in hardware.
+        #[must_use]
+        pub fn fifo_enabled(self) -> bool {
+            self.contains(Self::FIFOS_ENABLED0 | Self::FIFOS_ENABLED1)
         }
     }
 
