@@ -375,6 +375,12 @@ pub mod registers {
         pub const fn has_pending_interrupt(self) -> bool {
             !self.contains(Self::INTERRUPT_STATUS)
         }
+
+        /// Returns true if the FIFO is enabled and implemented in hardware.
+        #[must_use]
+        pub fn fifo_enabled(self) -> bool {
+            self.contains(Self::FIFOS_ENABLED0 | Self::FIFOS_ENABLED1)
+        }
     }
 
     /// The possible interrupt types reported by the [`ISR`].

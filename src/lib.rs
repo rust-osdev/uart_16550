@@ -317,8 +317,10 @@ mod tty;
 #[derive(Debug)]
 pub struct Uart16550<B: Backend> {
     backend: B,
-    // The currently active config.
+    /// The currently active config.
     config: Config,
+    /// Whether the FIFOs are enabled in hardware.
+    fifo_enabled: bool,
 }
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64", doc))]
@@ -484,6 +486,8 @@ impl<B: Backend> Uart16550<B> {
             backend,
             // Will be replaced by the actual config in init() afterwards.
             config: Config::DEFAULT,
+            // Until init() checks the hardware, assume the default config.
+            fifo_enabled: Config::DEFAULT.fifo_trigger_level.is_some(),
         }
     }
 
@@ -925,8 +929,7 @@ impl<B: Backend> Uart16550<B> {
             return 0;
         }
 
-        let fifo_enabled = self.config.fifo_trigger_level.is_some();
-        let bytes = if fifo_enabled {
+        let bytes = if self.fifo_enabled {
             let max_index = cmp::min(FIFO_SIZE, buffer.len());
             &buffer[..max_index]
         } else {
@@ -1073,7 +1076,7 @@ impl<B: Backend> Uart16550<B> {
     /// Configures the [`FCR`] from the currently active [`Config`].
     ///
     /// It will always flush all FIFO queues (RX and TX) but activate the FIFO
-    /// only if it is configured to be active.
+    /// only if it is configured and the hardware implements it.
     ///
     /// # Safety
     ///
@@ -1096,6 +1099,9 @@ impl<B: Backend> Uart16550<B> {
 
             self.backend.write(offsets::FCR as u8, fcr.bits());
         }
+
+        // Check that the FIFOs are really enabled in hw. A 16450 has none.
+        self.fifo_enabled = self.config.fifo_trigger_level.is_some() && self.isr().fifo_enabled();
     }
 
     /* ----- Misc ----------------------------------------------------------- */
@@ -1106,6 +1112,12 @@ impl<B: Backend> Uart16550<B> {
     /// [`Self::config_register_dump`].
     pub const fn config(&self) -> &Config {
         &self.config
+    }
+
+    /// Returns true if the FIFO is enabled and implemented in hardware.
+    #[must_use]
+    pub const fn fifo_enabled(&self) -> bool {
+        self.fifo_enabled
     }
 
     /// Returns the backend.

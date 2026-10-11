@@ -45,6 +45,10 @@
 - The docs of `ISR` mention its other name, Interrupt Identification Register
   (IIR), which some datasheets and Linux use. Searching the docs for IIR finds
   it.
+- Fixed: `init()` and `test_loopback()` detect whether the FIFOs are really
+  enabled, e.g., not on a 16450, and sending no longer overruns the transmitter
+  then. The new `Uart16550::fifo_enabled()` reports it, and the new
+  `ISR::fifo_enabled()` is a convenience getter for the FIFO bits.
 
 ## 0.8.1 - 2026-09-14
 
