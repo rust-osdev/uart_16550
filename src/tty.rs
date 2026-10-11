@@ -107,6 +107,11 @@ impl Error for Uart16550TtyError {
 /// [`Uart16550Tty::new_with_backend()`] create an instance with the
 /// corresponding backend.
 ///
+/// They initialize the device and run [`Uart16550::test_loopback()`], which
+/// waits for the looped-back data. If a device lacks a working loopback mode,
+/// initialize a [`Uart16550`] yourself and wrap it with
+/// [`Uart16550Tty::from_inner()`].
+///
 /// # Hints for Usage on Real Hardware
 ///
 /// Please note that real hardware often behaves quite differently. Just because
