@@ -8,15 +8,15 @@
 use std::collections::VecDeque;
 use uart_16550::backend::Backend;
 use uart_16550::spec::CLK_FREQUENCY_HZ;
-use uart_16550::spec::registers::{FifoTriggerLevel, IER, LSR, MSR, Parity, WordLength};
+use uart_16550::spec::registers::{
+    FifoTriggerLevel, IER, InterruptType, LSR, MSR, Parity, WordLength,
+};
 use uart_16550::{BaudRate, Config, Uart16550};
 
 /// A model of a 16550A UART.
 ///
 /// Time advances with every register access. Transmitting a character takes
 /// [`Device16550::CHAR_TICKS`] ticks.
-// The model is complete; not every test uses all of it.
-#[allow(dead_code)]
 mod model {
     use super::*;
 
@@ -1046,4 +1046,194 @@ fn flush_waits_for_transmitter() {
     uart.flush().unwrap();
 
     assert_eq!(uart.backend_mut().take_sent(), b"hello");
+}
+
+/* ----- Interrupts --------------------------------------------------------- */
+
+/// Handles an interrupt like Linux' `serial8250_handle_irq()`, but with the
+/// driver's API. Received bytes go to `rx`, bytes to send come from `tx`.
+///
+/// Returns whether an interrupt was pending.
+fn handle_irq(uart: &mut Uart16550<Device16550>, rx: &mut Vec<u8>, tx: &mut VecDeque<u8>) -> bool {
+    let iir = uart.isr();
+    if !iir.has_pending_interrupt() {
+        return false;
+    }
+    let lsr = uart.lsr();
+    if lsr.intersects(LSR::DATA_READY | LSR::BREAK_INTERRUPT) {
+        while let Ok(byte) = uart.try_receive_byte() {
+            rx.push(byte);
+        }
+    }
+    // Acknowledges a modem status interrupt, like `serial8250_modem_status()`.
+    let _ = uart.msr();
+    if lsr.contains(LSR::THR_EMPTY) && uart.ier().contains(IER::THR_EMPTY) {
+        let n = tx.len().min(FIFO_SIZE);
+        let chunk: Vec<u8> = tx.drain(..n).collect();
+        assert_eq!(uart.send_bytes(&chunk), n);
+        if tx.is_empty() {
+            // Like Linux' `__stop_tx()`.
+            uart.disable_interrupts(IER::THR_EMPTY);
+        }
+    }
+    true
+}
+
+/// Initializes the device with the given interrupts and FIFO trigger level.
+fn uart_with_interrupts(interrupts: IER, trigger: FifoTriggerLevel) -> Uart16550<Device16550> {
+    let mut uart = new_uart();
+    uart.init(Config {
+        interrupts,
+        fifo_trigger_level: Some(trigger),
+        ..linux_config()
+    })
+    .unwrap();
+    assert!(!uart.backend().irq());
+    uart
+}
+
+/// The RX interrupt fires at the FIFO trigger level, and handling it like
+/// Linux deasserts it.
+#[test]
+fn rx_interrupt_at_trigger_level() {
+    let mut uart = uart_with_interrupts(
+        IER::DATA_READY | IER::RECEIVER_LINE_STATUS,
+        FifoTriggerLevel::Four,
+    );
+
+    uart.backend_mut().inject_rx(b"abc");
+    assert!(!uart.backend().irq());
+    uart.backend_mut().inject_rx(b"d");
+    assert!(uart.backend().irq());
+    assert_eq!(
+        uart.isr().interrupt_type(),
+        Some(InterruptType::ReceivedDataReady)
+    );
+
+    let mut rx = Vec::new();
+    assert!(handle_irq(&mut uart, &mut rx, &mut VecDeque::new()));
+    assert_eq!(rx, b"abcd");
+    assert!(!uart.backend().irq());
+}
+
+/// Data below the trigger level raises the character timeout interrupt.
+#[test]
+fn rx_timeout_interrupt() {
+    let mut uart = uart_with_interrupts(IER::DATA_READY, FifoTriggerLevel::Four);
+
+    uart.backend_mut().inject_rx(b"ab");
+    assert!(!uart.backend().irq());
+    uart.backend_mut().idle(Device16550::RX_TIMEOUT_TICKS);
+    assert!(uart.backend().irq());
+    assert_eq!(
+        uart.isr().interrupt_type(),
+        Some(InterruptType::ReceptionTimeout)
+    );
+
+    let mut rx = Vec::new();
+    handle_irq(&mut uart, &mut rx, &mut VecDeque::new());
+    assert_eq!(rx, b"ab");
+    assert!(!uart.backend().irq());
+}
+
+/// A byte received with an error raises the line status interrupt, which has
+/// the highest priority.
+#[test]
+fn line_status_interrupt() {
+    let mut uart = uart_with_interrupts(
+        IER::DATA_READY | IER::RECEIVER_LINE_STATUS,
+        FifoTriggerLevel::One,
+    );
+
+    uart.backend_mut().inject_rx_with_errors(b'x', LSR_FE);
+    assert!(uart.backend().irq());
+    assert_eq!(
+        uart.isr().interrupt_type(),
+        Some(InterruptType::ReceiverLineStatus)
+    );
+
+    let mut rx = Vec::new();
+    handle_irq(&mut uart, &mut rx, &mut VecDeque::new());
+    assert_eq!(rx, b"x");
+    assert!(!uart.backend().irq());
+}
+
+/// Interrupt-driven transmit, like Linux' `serial8250_tx_chars()`: the first
+/// bytes are sent directly, and each THRE interrupt refills the FIFO.
+#[test]
+fn interrupt_driven_transmit() {
+    let mut uart = uart_with_interrupts(IER::DATA_READY, FifoTriggerLevel::Fourteen);
+    let message: Vec<u8> = (0..100).collect();
+    let mut tx: VecDeque<u8> = message.iter().copied().collect();
+
+    // Like Linux' `__start_tx()` for devices that don't raise the interrupt
+    // when it is enabled (`UART_BUG_TXEN`).
+    uart.enable_interrupts(IER::THR_EMPTY);
+    let n = uart.send_bytes(tx.make_contiguous());
+    tx.drain(..n);
+
+    let mut interrupts = 0;
+    while !tx.is_empty() {
+        if uart.backend().irq() {
+            handle_irq(&mut uart, &mut Vec::new(), &mut tx);
+            interrupts += 1;
+        } else {
+            uart.backend_mut().idle(1);
+        }
+    }
+
+    // The first chunk was sent directly, without an interrupt.
+    assert_eq!(interrupts, message.len().div_ceil(FIFO_SIZE) - 1);
+    assert_eq!(drain_sent(&mut uart), message);
+    assert_eq!(uart.backend().tx_overflows, 0);
+    assert!(!uart.backend().irq());
+}
+
+/// A modem line change raises the modem status interrupt, and reading MSR
+/// acknowledges it.
+#[test]
+fn modem_status_interrupt() {
+    let mut uart = uart_with_interrupts(IER::MODEM_STATUS, FifoTriggerLevel::Fourteen);
+
+    uart.backend_mut().set_modem_inputs(MSR_CTS | MSR_DSR);
+    assert!(uart.backend().irq());
+    assert_eq!(
+        uart.isr().interrupt_type(),
+        Some(InterruptType::ModemStatus)
+    );
+
+    handle_irq(&mut uart, &mut Vec::new(), &mut VecDeque::new());
+    assert!(!uart.backend().irq());
+}
+
+/// Sending with CTS flow control reads MSR, which clears its delta bits. Like
+/// Linux, which saves them in `msr_saved_flags`, the driver must not lose a
+/// modem status change.
+#[test]
+fn cts_check_keeps_modem_status_change() {
+    let mut uart = new_uart();
+    uart.init(Config {
+        interrupts: IER::MODEM_STATUS,
+        check_cts_before_sending: true,
+        ..linux_config()
+    })
+    .unwrap();
+
+    uart.backend_mut().set_modem_inputs(MSR_CTS | MSR_DSR);
+    uart.try_send_byte(b'x').unwrap();
+
+    assert!(uart.msr().contains(MSR::DELTA_CTS | MSR::DELTA_DSR));
+}
+
+/// Like the CTS check, `check_connected()` reads MSR and must not lose a modem
+/// status change.
+#[test]
+fn check_connected_keeps_modem_status_change() {
+    let mut uart = new_uart();
+    uart.init(linux_config()).unwrap();
+    uart.backend_mut().set_modem_inputs(MSR_CTS | MSR_DSR);
+
+    uart.check_connected().unwrap();
+
+    assert!(uart.msr().contains(MSR::DELTA_CTS | MSR::DELTA_DSR));
 }
