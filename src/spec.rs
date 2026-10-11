@@ -365,6 +365,7 @@ pub mod registers {
         /// The priority of the interrupt is available via
         /// [`InterruptType::priority`]. If no interrupt is pending, the
         /// function returns `None`.
+        #[inline]
         #[must_use]
         pub fn interrupt_type(self) -> Option<InterruptType> {
             InterruptType::from_bits(self.bits())
@@ -478,6 +479,7 @@ pub mod registers {
         ///
         /// If the lowest bit is `1` (no interrupt pending), this function
         /// returns `None`.
+        #[inline]
         #[must_use]
         pub fn from_bits(isr_bits: u8) -> Option<Self> {
             let bits = isr_bits & 0xf;
