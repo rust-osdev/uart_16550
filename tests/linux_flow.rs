@@ -8,7 +8,7 @@
 use std::collections::VecDeque;
 use uart_16550::backend::Backend;
 use uart_16550::spec::CLK_FREQUENCY_HZ;
-use uart_16550::spec::registers::{FifoTriggerLevel, IER, Parity, WordLength};
+use uart_16550::spec::registers::{FifoTriggerLevel, IER, MSR, Parity, WordLength};
 use uart_16550::{BaudRate, Config, Uart16550};
 
 /// A model of a 16550A UART.
@@ -788,4 +788,136 @@ fn startup_detects_fifo() {
     let mut uart = unsafe { Uart16550::new_with_backend(Device16550::new_16450()) };
     uart.init(linux_config()).unwrap();
     assert!(!uart.fifo_enabled());
+}
+
+/* ----- Self test ---------------------------------------------------------- */
+
+/// The loopback test passes and leaves no traces: no data on the wire, no
+/// received data, and the previous MCR.
+#[test]
+fn loopback_test_leaves_no_traces() {
+    let mut uart = new_uart();
+    uart.init(linux_config()).unwrap();
+    let mcr = uart.backend().peek(MCR);
+
+    uart.test_loopback().unwrap();
+
+    let dev = uart.backend_mut();
+    assert_eq!(dev.peek(MCR), mcr);
+    assert!(dev.take_sent().is_empty());
+    assert_eq!(dev.rx_level(), 0);
+    assert_eq!(dev.tx_overflows, 0);
+}
+
+/// The loopback test also works without FIFO.
+#[test]
+fn loopback_test_without_fifo() {
+    let mut uart = new_uart();
+    uart.init(config_without_fifo()).unwrap();
+
+    uart.test_loopback().unwrap();
+
+    let dev = uart.backend();
+    assert_eq!(dev.tx_overflows, 0);
+    assert_eq!(dev.peek(MCR), MCR_DTR | MCR_RTS | MCR_OUT2);
+}
+
+/// A failing loopback test leaves the device usable: it reports the error and
+/// leaves loopback mode again.
+#[test]
+fn loopback_test_failure_leaves_loopback_mode() {
+    let mut uart = new_uart();
+    uart.init(linux_config()).unwrap();
+    uart.backend_mut().loopback_xor = 0xff;
+
+    assert!(uart.test_loopback().is_err());
+
+    assert_eq!(uart.backend().peek(MCR) & MCR_LOOP, 0);
+}
+
+/// The loopback test doesn't leave a modem status change behind, which would
+/// raise a spurious modem status interrupt. In loopback mode, the modem lines
+/// follow MCR instead of the remote, which asserts CTS and DSR here.
+#[test]
+fn loopback_test_leaves_no_modem_status_change() {
+    let mut uart = new_uart();
+    uart.backend_mut().set_modem_inputs(MSR_CTS | MSR_DSR);
+    uart.init(Config {
+        interrupts: IER::MODEM_STATUS,
+        ..linux_config()
+    })
+    .unwrap();
+
+    uart.test_loopback().unwrap();
+
+    assert!(!uart.backend().irq());
+}
+
+/// On a 16450, the loopback test also works with a config that enables the
+/// FIFO, which the device doesn't have.
+#[test]
+fn loopback_test_on_16450() {
+    // SAFETY: The backend is a model; there is no real device.
+    let mut uart = unsafe { Uart16550::new_with_backend(Device16550::new_16450()) };
+    uart.init(linux_config()).unwrap();
+
+    uart.test_loopback().unwrap();
+
+    assert_eq!(uart.backend().tx_overflows, 0);
+}
+
+/// The loopback test keeps modem status changes that happened before, so
+/// `msr()` still reports them.
+#[test]
+fn loopback_test_keeps_modem_status_changes() {
+    let mut uart = new_uart();
+    uart.init(linux_config()).unwrap();
+    uart.backend_mut().set_modem_inputs(MSR_CTS | MSR_DSR);
+
+    uart.test_loopback().unwrap();
+
+    assert!(uart.msr().contains(MSR::DELTA_CTS | MSR::DELTA_DSR));
+}
+
+/// The loopback test disables interrupts while it sends data, so that no
+/// interrupt handler takes the looped-back data, and restores them afterwards.
+#[test]
+fn loopback_test_disables_interrupts_meanwhile() {
+    let interrupts = IER::DATA_READY | IER::RECEIVER_LINE_STATUS;
+    let mut uart = new_uart();
+    uart.init(Config {
+        interrupts,
+        ..linux_config()
+    })
+    .unwrap();
+    uart.backend_mut().log.clear();
+
+    uart.test_loopback().unwrap();
+
+    let dev = uart.backend();
+    // Replay the logged writes to know IER whenever looped-back data is sent.
+    let mut ier = interrupts.bits();
+    let mut loopback = false;
+    for &(offset, is_write, value) in &dev.log {
+        match (offset, is_write) {
+            (IER, true) => ier = value,
+            (MCR, true) => loopback = value & MCR_LOOP != 0,
+            (TX, true) if loopback => assert_eq!(ier, 0, "interrupts enabled"),
+            _ => {}
+        }
+    }
+    assert_eq!(dev.peek(IER), interrupts.bits());
+}
+
+/// The loopback test lets a running transmission finish first, so it is
+/// neither cut off nor looped back.
+#[test]
+fn loopback_test_lets_transmission_finish() {
+    let mut uart = new_uart();
+    uart.init(linux_config()).unwrap();
+    uart.send_bytes_exact(b"hello");
+
+    uart.test_loopback().unwrap();
+
+    assert_eq!(uart.backend_mut().take_sent(), b"hello");
 }
