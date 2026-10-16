@@ -15,7 +15,8 @@
 //! backed by a **16550 UART devices**, may it be physical or emulated. This
 //! crate offers convenient and powerful abstractions for these devices, and
 //! also works for other architectures, such as ARM or RISC-V, by offering
-//! support for MMIO-mapped devices.
+//! support for MMIO-mapped devices. Custom backends (e.g., hypercall-based I/O
+//! in confidential VMs) are also supported, see the [`backend`] module.
 //!
 //! Serial ports are especially useful for debugging or operating system
 //! learning projects. See [`Uart16550`] to get started.
@@ -31,9 +32,8 @@
 //!   machines
 //! - ✅ Fully type-safe and derived directly from the official
 //!   [specification][uart]
-//! - ✅ Supports both **x86 port-mapped I/O** and **memory-mapped I/O** (MMIO),
-//!   as well as [**custom backends**](backend) (e.g., hypercall-based I/O in
-//!   confidential VMs)
+//! - ✅ Supports **x86 port-mapped I/O**, **memory-mapped I/O** (MMIO), as well
+//!   as custom backends.
 //! - ✅ `no_std`-compatible and allocation-free by design
 //! - ✅ Compatible with all architectures supported by Rust (x86/x86_64, ARM,
 //!   RISC-V, ...)
@@ -650,7 +650,7 @@ impl<B: Backend> Uart16550<B> {
             mcr |= MCR::RTS;
             // enable interrupt routing to the interrupt controller
             // (so far individual interrupts are still disabled in IER).
-            // The driver controls interrupts only via IER and keeps OUT2
+            // The driver controcls interrupts only via IER and keeps OUT2
             // set.
             mcr |= MCR::OUT_2_INT_ENABLE;
 
