@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.9.0 - 2026-10-16
+
 This release makes the driver considerably more robust in production use on real
 hardware. Tests against a model of a 16550A that follows the Linux 8250 driver,
 created with LLM assistance and careful human review, found 12 bugs, all fixed
