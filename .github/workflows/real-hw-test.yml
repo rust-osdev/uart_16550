@@ -38,11 +38,15 @@ jobs:
       - name: Install QEMU, firmware, and harness tools
         run: |
           sudo apt-get update
+          packages=(dosfstools mtools socat)
           if [[ "${{ matrix.arch }}" == x86_64 ]]; then
-            sudo apt-get install -y dosfstools mtools ovmf qemu-system-x86 socat
+            packages+=(ovmf qemu-system-x86)
           else
-            sudo apt-get install -y dosfstools mtools qemu-efi-aarch64 qemu-system-arm socat
+            packages+=(qemu-efi-aarch64 qemu-system-arm)
           fi
+          sudo apt-get install -y "${packages[@]}"
+          # QEMU and firmware versions follow the runner image.
+          dpkg-query -W "${packages[@]}"
       - name: Run deterministic UEFI checks
         working-directory: real-hw-test
         run: |

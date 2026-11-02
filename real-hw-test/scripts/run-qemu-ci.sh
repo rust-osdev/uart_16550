@@ -47,16 +47,22 @@ mkfs.vfat "$disk" >/dev/null
 mmd -i "$disk" ::/EFI ::/EFI/BOOT
 mcopy -i "$disk" "$artifact" "::/EFI/BOOT/$boot_name"
 
-"$qemu" \
-    "${machine_args[@]}" \
-    -drive "format=raw,file=$disk" \
-    -nic none \
-    -display none \
-    -monitor "unix:$monitor,server,nowait" \
-    -serial "file:$console_log" \
-    -chardev "file,id=pci_serial,path=$pci_log" \
-    -device pci-serial,chardev=pci_serial \
-    -no-reboot &
+qemu_args=(
+    "${machine_args[@]}"
+    -drive "format=raw,file=$disk"
+    -nic none
+    -display none
+    -monitor "unix:$monitor,server,nowait"
+    -serial "file:$console_log"
+    -chardev "file,id=pci_serial,path=$pci_log"
+    -device "pci-serial,chardev=pci_serial"
+    -no-reboot
+)
+# Host QEMU and firmware change with the CI runner image; log what this run
+# actually used.
+"$qemu" --version | head -n1
+echo "$qemu ${qemu_args[*]}"
+"$qemu" "${qemu_args[@]}" &
 qemu_pid=$!
 trap 'kill -9 "$qemu_pid" 2>/dev/null || true' EXIT
 deadline=$(($(date +%s) + timeout_s))
