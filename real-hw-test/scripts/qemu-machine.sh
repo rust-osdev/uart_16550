@@ -43,8 +43,14 @@ qemu_machine_setup() {
         # Writable per-run variable store; the template may be read-only on disk.
         cp "$aavmf_vars" "$vars_file"
         chmod u+w "$vars_file"
+        # Under TCG, a fixed CPU model instead of max: AAVMF 2025.11 (Ubuntu
+        # 26.04) hangs before BDS with QEMU 10.2's max. KVM needs max (host).
+        local cpu=max
+        if [[ "$accel" == tcg ]]; then
+            cpu=neoverse-n1
+        fi
         # virt has no built-in keyboard; the UEFI prompts need one.
-        machine_args=(-machine "virt,accel=$accel" -cpu max -m 512M
+        machine_args=(-machine "virt,accel=$accel" -cpu "$cpu" -m 512M
             -drive "if=pflash,format=raw,file=$aavmf_code,readonly=on"
             -drive "if=pflash,format=raw,file=$vars_file"
             -device qemu-xhci -device usb-kbd)
