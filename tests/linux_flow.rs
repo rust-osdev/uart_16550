@@ -647,6 +647,25 @@ fn model_passes_linux_thre_tests() {
     serial_out(&mut uart, IER, 0);
 }
 
+/// The IIR reports only the pending interrupt with the highest priority, and
+/// reading it acknowledges a THRE interrupt only if it reports that one.
+/// Drivers that dispatch on the IIR, e.g., FreeBSD's, rely on this.
+#[test]
+fn model_iir_reports_highest_priority() {
+    let mut uart = new_uart();
+
+    // Received data and THRE are pending at the same time.
+    serial_out(&mut uart, IER, IER_RDI | IER_THRI);
+    uart.backend_mut().inject_rx(b"a");
+
+    // IIR reports the received data first and keeps THRE pending.
+    assert_eq!(serial_in(&mut uart, IIR), IIR_RDI);
+    assert_eq!(serial_in(&mut uart, RX), b'a');
+    assert_eq!(serial_in(&mut uart, IIR), IIR_THRI);
+    assert_eq!(serial_in(&mut uart, IIR), IIR_NO_INT);
+    serial_out(&mut uart, IER, 0);
+}
+
 /* ----- Startup ------------------------------------------------------------ */
 
 /// The default configuration of Linux' serial console, see
