@@ -66,8 +66,7 @@ jobs:
       - name: Install QEMU
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-system-i386
-
+          sudo apt-get install -y qemu-system-x86
       - name: Verify QEMU installation
         run: qemu-system-i386 --version
       - name: Build
