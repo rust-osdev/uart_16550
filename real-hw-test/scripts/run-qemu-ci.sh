@@ -47,19 +47,26 @@ mkfs.vfat "$disk" >/dev/null
 mmd -i "$disk" ::/EFI ::/EFI/BOOT
 mcopy -i "$disk" "$artifact" "::/EFI/BOOT/$boot_name"
 
-"$qemu" \
-    "${machine_args[@]}" \
-    -drive "format=raw,file=$disk" \
-    -nic none \
-    -display none \
-    -monitor "unix:$monitor,server,nowait" \
-    -serial "file:$console_log" \
-    -chardev "file,id=pci_serial,path=$pci_log" \
-    -device pci-serial,chardev=pci_serial \
-    -no-reboot &
+qemu_args=(
+    "${machine_args[@]}"
+    -drive "format=raw,file=$disk"
+    -nic none
+    -display none
+    -monitor "unix:$monitor,server,nowait"
+    -serial "file:$console_log"
+    -chardev "file,id=pci_serial,path=$pci_log"
+    -device "pci-serial,chardev=pci_serial"
+    -no-reboot
+)
+# Host QEMU and firmware change with the CI runner image; log what this run
+# actually used.
+"$qemu" --version | head -n1
+echo "$qemu ${qemu_args[*]}"
+"$qemu" "${qemu_args[@]}" &
 qemu_pid=$!
 trap 'kill -9 "$qemu_pid" 2>/dev/null || true' EXIT
-deadline=$(($(date +%s) + timeout_s))
+start=$(date +%s)
+deadline=$((start + timeout_s))
 
 monitor_cmd() {
     printf '%s\n' "$1" | socat -t 1 - "UNIX-CONNECT:$monitor" >/dev/null 2>&1 \
@@ -68,6 +75,22 @@ monitor_cmd() {
 
 qemu_alive() {
     kill -0 "$qemu_pid" 2>/dev/null
+}
+
+# A periodic snapshot of the console shows where a stuck run stopped, e.g.,
+# in firmware before the application started, without waiting for the
+# timeout to dump the logs.
+progress_interval_s=5
+last_progress=$start
+report_progress() {
+    local now last_line
+    now=$(date +%s)
+    ((now - last_progress >= progress_interval_s)) || return 0
+    last_progress=$now
+    # Strip CSI sequences and carriage returns of the firmware console.
+    last_line=$(sed -E 's/\x1b\[[0-9;=?]*[A-Za-z]//g; s/\r//g' "$console_log" \
+        2>/dev/null | grep -v '^[[:space:]]*$' | tail -n1 || true)
+    echo "[$((now - start))s] console: ${last_line:-<empty>}"
 }
 
 # Mid-run extraction from the live FAT image is best-effort progress polling;
@@ -109,6 +132,7 @@ until extract_persisted_log | grep -qF 'then press Enter.'; do
     if (($(date +%s) >= deadline)); then
         fail_run "timeout waiting for the first operator prompt"
     fi
+    report_progress
     sleep 2
 done
 
@@ -122,6 +146,7 @@ while (($(date +%s) < deadline)); do
     # A queued Enter can finish the final prompt early; the persisted log then
     # already contains every line the assertions below need.
     qemu_alive || break
+    report_progress
     monitor_cmd 'sendkey ret'
     sleep 1
     monitor_cmd 'sendkey esc'
